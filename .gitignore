@@ -1,0 +1,6 @@
+# Ignore Bazel Dirs
+/bazel-*
+
+# Ignore VIM Swaps
+*.swp
+*.swo

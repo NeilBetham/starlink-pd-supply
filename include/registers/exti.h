@@ -1,0 +1,24 @@
+/**
+ * @brief Registers for configuring the external interrupt system
+ */
+
+#include "registers/helpers.h"
+
+#pragma once
+
+#define EXTI_BASE 0x40010400
+
+#define EXTI_IMR_OFFSET   0x00000000
+#define EXTI_EMR_OFFSET   0x00000004
+#define EXTI_RTSR_OFFSET  0x00000008
+#define EXTI_FTSR_OFFSET  0x0000000C
+#define EXTI_SWIER_OFFSET 0x00000010
+#define EXTI_PR_OFFSET    0x00000014
+
+#define EXTI_IMR   REGISTER(EXTI_BASE + EXTI_IMR_OFFSET)
+#define EXTI_EMR   REGISTER(EXTI_BASE + EXTI_EMR_OFFSET)
+#define EXTI_RTSR  REGISTER(EXTI_BASE + EXTI_RTSR_OFFSET)
+#define EXTI_FTSR  REGISTER(EXTI_BASE + EXTI_FTSR_OFFSET)
+#define EXTI_SWIER REGISTER(EXTI_BASE + EXTI_SWIER_OFFSET)
+#define EXTI_PR    REGISTER(EXTI_BASE + EXTI_PR_OFFSET)
+
