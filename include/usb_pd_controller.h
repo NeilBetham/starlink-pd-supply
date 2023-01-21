@@ -9,6 +9,7 @@
 enum class PDState {
   unknown = 0,
   init,         // Inital state to be entered while waiting for a src caps message
+  caps_wait,    // A caps request has been sent we're waiting for a repsonse
   need_resp,    // We've sent a pd request and are waiting for a respose
   accepted,     // Src has accepted the request waiting for ps_rdy
   rejected,     // Src has reject our request indicate error

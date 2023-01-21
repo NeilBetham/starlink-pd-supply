@@ -62,6 +62,10 @@ RTT::~RTT() {
 
 
 int RTT::printf(const char* format, ...) {
+  if(_buffer_full_count >= 15) {
+    return 0;
+  }
+
   va_list args;
   int retval = 0;
   va_start(args, format);
@@ -71,6 +75,10 @@ int RTT::printf(const char* format, ...) {
 }
 
 int RTT::vprintf(const char* format, va_list args) {
+  if(_buffer_full_count >= 15) {
+    return 0;
+  }
+
   char buffer[258] = {0};
   int buffer_pos = 0;
 
@@ -106,14 +114,15 @@ void RTT::write(uint32_t out_buffer, const void* buffer, uint32_t count) {
   uint32_t write_offset = write_cb->write_offset;
   uint32_t bytes_written = 0;
 
-  if(space_available(write_offset, read_offset, write_cb->buffer_size) < 1) {
-    // The buffer is full so the debugger is likely not attached
-    return;
-  }
-
   while(bytes_written < count) {
     // First check to see if the debugger has read any bytes
     read_offset =- write_cb->read_offset;
+
+    // Check if the buffer is full, if it's full then bail
+    if(space_available(write_offset, read_offset, write_cb->buffer_size) < 1) {
+      _buffer_full_count++;
+      return;
+    }
 
     // Figure out how many bytes we can write
     uint32_t bytes_till_wrap = write_cb->buffer_size - write_offset;

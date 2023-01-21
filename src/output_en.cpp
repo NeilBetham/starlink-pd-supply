@@ -11,7 +11,7 @@ void init() {
   RCC_IOPENR |= BIT_0;
   GPIO_A_MODER  &= ~(0x00000300);
   GPIO_A_MODER  |=   0x00000100;
-  GPIO_A_OTYPER |= BIT_4;
+  GPIO_A_OTYPER &= ~(BIT_4);
   GPIO_A_ODR    &= ~(BIT_4);
 }
 

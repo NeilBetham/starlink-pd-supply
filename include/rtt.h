@@ -66,6 +66,8 @@ private:
   ALIGNED RTT_CONTROL_BUFFER _control_buffer;
   ALIGNED uint8_t _main_buffer[(MAX_UP_BUFFERS + MAX_DOWN_BUFFERS) * CHANNEL_BUFFER_SIZE] = {};
 
+  uint32_t _buffer_full_count = 0;
+
 };
 
 

@@ -117,7 +117,6 @@ int main() {
     }
     controller_a.tick();
     controller_b.tick();
-    msleep(1);
   }
 
   return 0;
