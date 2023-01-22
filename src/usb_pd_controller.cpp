@@ -1,21 +1,18 @@
 #include "usb_pd_controller.h"
 
-#include <string.h>
-
 #include "registers/helpers.h"
 #include "status_light.h"
 #include "output_en.h"
 #include "rtt.h"
 #include "time.h"
 #include "tcpc.h"
-#include "pd_protocol.h"
+#include "utils.h"
 
 
 void USBPDController::init() {
   _state = PDState::unknown;
 
   // Configure the PHY
-  rtt_printf("Setting up PD PHY");
   _phy.set_register(PHY_REG_ROLE_CTL, 0x0A);  // Sink only
   _phy.set_register(PHY_REG_RECV_DETECT, BIT_0 | BIT_5);  // SOP and hard resets
   _phy.set_register(PHY_REG_MSG_HDR_INFO, 0x04);  // Sink only
@@ -24,43 +21,21 @@ void USBPDController::init() {
 }
 
 void USBPDController::handle_alert() {
-  rtt_printf("Handling alert from PD PHY");
   // Read the alert status off of the HPY
   uint16_t alert_status = _phy.get_register(PHY_REG_ALERT);
   while(alert_status > 0) {
     if(alert_status & BIT_0) {
-      rtt_printf("CC Status");
       // CC Status Alert
-      uint16_t cc_status = _phy.get_register(PHY_REG_CC_STAT);
-
-      // Check the plug orientation
-      uint8_t cc1_status = cc_status & 0x0003;
-      uint8_t cc2_status = (cc_status & 0x000C) >> 2;
-
-      if(cc2_status > 0) {
-        rtt_printf("CC2 Active");
-        _phy.set_register(PHY_REG_TCPC_CTL, BIT_0);
-      } else {
-        rtt_printf("CC1 Active");
-      }
-
-      if(cc_status & 0x0000000F > 0) {
-        _state = PDState::init;
-        _caps_timer = system_time();
-      }
-
-      _phy.set_register(PHY_REG_ALERT, BIT_0);
-    }
+      handle_cc_status();
+   }
 
     if(alert_status & BIT_1) {
-      rtt_printf("Power Status");
       // Port power status
       uint16_t power_status = _phy.get_register(PHY_REG_POWER_STAT);
       _phy.set_register(PHY_REG_ALERT, BIT_1);
     }
 
     if(alert_status & BIT_2) {
-      rtt_printf("MSG RX");
       // SOP* RX
       handle_msg_rx();
     }
@@ -96,7 +71,6 @@ void USBPDController::handle_alert() {
     }
 
     if(alert_status & BIT_9) {
-      rtt_printf("Fault");
       // Fault, check fault reg
       uint16_t fault_status = _phy.get_register(PHY_REG_FAULT_STAT);
       if(fault_status > 0) { _phy.set_register(PHY_REG_FAULT_STAT, 0xFFFF); }
@@ -137,11 +111,10 @@ void USBPDController::handle_alert() {
 }
 
 void USBPDController::send_caps_req() {
-  rtt_printf("Caps req tx");
   MessageHeader message;
-  memset(&message, 0, sizeof(MessageHeader));
+  setmem(&message, 0, sizeof(MessageHeader));
 
-  message.message_type = PD_MSG_TYPE_GET_SRC_CAP;
+  message.message_type = (uint8_t)ControlMessageType::get_source_cap;
   message.num_data_obj = 0;
   message.spec_rev = 1;
   message.message_id = _msg_id_counter;
@@ -151,11 +124,10 @@ void USBPDController::send_caps_req() {
 }
 
 void USBPDController::soft_reset() {
-  rtt_printf("Soft reset tx");
   MessageHeader message;
-  memset(&message, 0, sizeof(MessageHeader));
+  setmem(&message, 0, sizeof(MessageHeader));
 
-  message.message_type = PD_MSG_TYPE_SOFT_RESET;
+  message.message_type = (uint8_t)ControlMessageType::soft_reset;
   message.num_data_obj = 0;
   message.spec_rev = 1;
   message.message_id = _msg_id_counter;
@@ -169,8 +141,17 @@ void USBPDController::hard_reset() {
   _phy.hard_reset();
 }
 
+void USBPDController::request_capability(const SourceCapability& capability) {
+  request_capability(capability, capability.max_power());
+}
+
+void USBPDController::request_capability(const SourceCapability& capability, uint32_t power) {
+  Request request(capability, power);
+  send_request(request.generate_pdo());
+}
+
+
 void USBPDController::handle_msg_rx() {
-  rtt_printf("Msg RX handle");
   uint8_t msg_buffer[30] = {0};
   uint32_t msg_length = 0;
   _phy.rx_usb_pd_msg(msg_length, (uint8_t*)msg_buffer);
@@ -184,25 +165,21 @@ void USBPDController::handle_msg_rx() {
         // Good CRC, handled by TCPC
         break;
       case ControlMessageType::goto_min:
-        rtt_printf("Goto Min RX");
-        output_en::set_state(false);
-        status_light::set_color(1, 0, 1);
+        _delegate.go_to_min_received(*this);
         break;
       case ControlMessageType::accept:
-        rtt_printf("Accept Msg RX");
-        handle_src_accept_msg();
+        _delegate.accept_received(*this);
         break;
       case ControlMessageType::reject:
-        rtt_printf("Reject Msg RX");
-        handle_src_reject_msg();
+        _delegate.reject_received(*this);
         break;
       case ControlMessageType::ping:
-        // ping
         break;
       case ControlMessageType::ps_rdy:
-        rtt_printf("PS Rdy Msg RX");
-        handle_src_ps_rdy_msg();
+        _delegate.ps_ready_received(*this);
         break;
+      case ControlMessageType::soft_reset:
+        _delegate.reset_received(*this);
       default:
         break;
     }
@@ -213,133 +190,57 @@ void USBPDController::handle_msg_rx() {
         handle_src_caps_msg(msg_buffer, msg_length);
         break;
       case DataMessageType::bist:
-        rtt_printf("BIST Msg RX");
         break;
       case DataMessageType::sink_capabilities:
-        rtt_printf("Sink Caps Msg RX");
         break;
       case DataMessageType::vendor_defined:
-        rtt_printf("Vendor Def Msg RX");
       default:
         break;
     }
   }
 }
 
-void USBPDController::tick() {
-  uint32_t current_time = system_time();
-
-  if(_state == PDState::unknown) {
-    soft_reset();
-    _state = PDState::init;
-    _caps_timer = system_time();
-  }
-
-  if(_state == PDState::init && (current_time - _caps_timer) > 30) {
-    rtt_printf("Sending Caps request");
-    send_caps_req();
-    _state = PDState::caps_wait;
-  }
-}
-
 void USBPDController::handle_src_caps_msg(const uint8_t* message, uint32_t len) {
-  const uint8_t* message_contents = message + 2;
-  _state = PDState::need_resp;
+  const uint8_t* msg_start = message + 2;
+  MessageHeader* msg_hdr = (MessageHeader*)msg_start;
+  PowerDataObject* pdos = (PowerDataObject*)msg_start + 2;
 
-  uint32_t selected_object_index = 0;
-  uint16_t current = 0;
-  uint16_t max_voltage = 0;
-  uint32_t data_objects = ((MessageHeader*)message_contents)->num_data_obj;
+  _source_caps = SourceCapabilities(pdos, msg_hdr->num_data_obj);
 
-  const uint32_t* pdos_start = (uint32_t*)(message_contents + 2);
-  // Main requirement for selecting a capability is that it is over 15V at 2A
-  for(uint32_t index = 0; index < data_objects; index++) {
-    uint32_t pdo = *(pdos_start + index);
-    PowerDataObjectType type = (PowerDataObjectType)(pdo & 0xC0000000 >> 30);
+  _delegate.capabilities_received(*this, _source_caps);
+}
 
-    if(type == PowerDataObjectType::fixed) {
-      // Fixed suply
-      FixedPowerDataObject* fixed_pdo = (FixedPowerDataObject*)&pdo;
-      uint32_t voltage = fixed_pdo->voltage_50mv;
-      if((voltage >= 260) && (voltage > max_voltage)) {
-        selected_object_index = index;
-        current = fixed_pdo->max_current_10ma;
-        max_voltage = voltage;
+void USBPDController::handle_cc_status() {
+      uint16_t cc_status = _phy.get_register(PHY_REG_CC_STAT);
+
+      // Check the plug orientation
+      uint8_t cc1_status = cc_status & 0x0003;
+      uint8_t cc2_status = (cc_status & 0x000C) >> 2;
+
+      if(cc2_status > 0) {
+        _phy.set_register(PHY_REG_TCPC_CTL, BIT_0);
       }
-    } else if(type == PowerDataObjectType::battery) {
-      // Battery Supply
-      BatteryPowerDataObject* batt_pdo = (BatteryPowerDataObject*)&pdo;
-      uint32_t voltage = batt_pdo->min_voltage_50mv;
 
-      if((voltage >= 260) && (voltage > max_voltage)) {
-        selected_object_index = index;
-        current = batt_pdo->max_power_250mw;
-        max_voltage = voltage;
+      if(cc_status & 0x0000000F > 0) {
+        _state = PDState::init;
       }
-    } else if(type == PowerDataObjectType::variable) {
-      // Variable Supply
-      VariablePowerDataObject* var_pdo = (VariablePowerDataObject*)&pdo;
-      uint32_t voltage = var_pdo->min_voltage_50mv;
 
-      if((voltage >= 260) && (voltage > max_voltage)) {
-        selected_object_index = index;
-        current = var_pdo->max_current_10ma;
-        max_voltage = voltage;
-      }
-    }
-  }
-
-  if(selected_object_index > 0) {
-    send_request(current, selected_object_index);
-  } else {
-    FixedPowerDataObject* fixed_pdo = (FixedPowerDataObject*)&pdos_start;
-    send_request(fixed_pdo->max_current_10ma, 1);
-    status_light::set_color(1, 0, 0);
-  }
+      _phy.set_register(PHY_REG_ALERT, BIT_0);
 }
 
-void USBPDController::handle_src_accept_msg() {
-  _state = PDState::accepted;
-}
-
-void USBPDController::handle_src_reject_msg() {
-  _state = PDState::rejected;
-  status_light::set_color(1, 0, 0);
-}
-
-void USBPDController::handle_src_ps_rdy_msg() {
-  _state = PDState::ps_rdy;
-  status_light::set_color(0, 1, 0);
-  output_en::set_state(true);
-}
-
-void USBPDController::handle_reset_msg() {
-
-}
-
-void USBPDController::handle_good_crc_msg() {
-
-}
-
-void USBPDController::send_request(uint16_t current, uint8_t index) {
+void USBPDController::send_request(const uint32_t& request_data) {
   MessageHeader req_hdr;
-  FixedRequestPowerDataObject request;
-  memset(&req_hdr, 0, sizeof(req_hdr));
-  memset(&request, 0, sizeof(request));
+  setmem(&req_hdr, 0, sizeof(req_hdr));
 
-  req_hdr.num_data_obj = 0x1;
-  req_hdr.message_type = 0x2;
-  req_hdr.spec_rev = 0x1;
+  req_hdr.num_data_obj = 1;
+  req_hdr.message_type = (uint8_t)DataMessageType::request;
+  req_hdr.spec_rev = (uint8_t)SpecificationRev::two_v_zero;
   req_hdr.message_id = _msg_id_counter;
   _msg_id_counter++;
 
-  request.max_current_10ma = current;
-  request.op_current_10ma = current;
-  request.object_pos = index + 1;
-
   uint8_t buffer[6] = {0};
-  memcpy(buffer, &req_hdr, sizeof(req_hdr));
-  memcpy(buffer + 2, &request, sizeof(request));
+  cpymem(buffer, &req_hdr, sizeof(req_hdr));
+  cpymem(buffer + 2, &request_data, sizeof(request_data));
 
-  _phy.tx_usb_pd_msg(6, buffer);
+  _phy.tx_usb_pd_msg(sizeof(buffer), buffer);
 }

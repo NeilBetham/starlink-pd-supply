@@ -4,9 +4,9 @@ cc_library(
   name = "starlink-pd-supply-lib",
   hdrs = glob(["include/**/*.h"]),
   srcs = glob(["src/**/*.cpp"], exclude = ["src/startup.cpp", "src/handlers.cpp"]),
-  strip_include_prefix = "include/",
   deps = [
   ],
+  strip_include_prefix = "include/",
   copts = [
     "-ggdb",
     "-mthumb",
@@ -15,6 +15,9 @@ cc_library(
     "-specs=nosys.specs",
     "-std=c++11",
     "-fno-exceptions",
+    "-fno-use-cxa-atexit",
+    "-fno-rtti",
+    "-fno-threadsafe-statics",
   ],
 )
 
@@ -36,6 +39,9 @@ cc_binary(
     "-specs=nosys.specs",
     "-std=c++11",
     "-fno-exceptions",
+    "-fno-use-cxa-atexit",
+    "-fno-rtti",
+    "-fno-threadsafe-statics",
   ],
   linkopts = [
     "-T $(location :ld/STM32L011F4.ld)",
@@ -48,6 +54,12 @@ cc_binary(
     "-lstdc++",
     "-fno-exceptions",
     "-Xlinker -Map=/tmp/starlink-pd.map",
+    "-Xlinker --wrap=malloc",
+    "-Xlinker --wrap=free",
+    "-Xlinker --wrap=atexit",
+    "-Xlinker --wrap=memcpy",
+    "-Xlinker --wrap=memset",
+    "-Xlinker --wrap=exit",
   ],
 )
 

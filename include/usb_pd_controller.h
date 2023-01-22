@@ -3,6 +3,8 @@
  */
 
 #include "ptn5110.h"
+#include "pd_protocol.h"
+
 
 #pragma once
 
@@ -20,7 +22,7 @@ enum class PDState {
 
 class USBPDController : public AlertDelegate {
 public:
-  USBPDController(PTN5110& phy) : _phy(phy) {
+  USBPDController(PTN5110& phy, ControllerDelegate& delegate) : _phy(phy), _delegate(delegate) {
     _phy.set_delegate(this);
   };
   ~USBPDController() {
@@ -38,24 +40,21 @@ public:
   void soft_reset();
   void hard_reset();
 
-  // Handle tasks at periodic intervals
-  void tick();
+  const SourceCapabilities& caps() { return _source_caps; };
+  void request_capability(const SourceCapability& capability);
+  void request_capability(const SourceCapability& capability, uint32_t power);
 
 private:
   PTN5110& _phy;
+  ControllerDelegate& _delegate;
+  SourceCapabilities _source_caps;
 
   void handle_msg_rx();
   void handle_src_caps_msg(const uint8_t* message, uint32_t len);
-  void handle_src_accept_msg();
-  void handle_src_reject_msg();
-  void handle_src_ps_rdy_msg();
-  void handle_reset_msg();
-  void handle_good_crc_msg();
+  void handle_cc_status();
 
-  void send_request(uint16_t current, uint8_t index);
+  void send_request(const uint32_t& request_data);
 
   uint8_t _msg_id_counter = 0;
   PDState _state = PDState::unknown;
-
-  uint8_t _caps_timer = 0;
 };

@@ -8,98 +8,76 @@ void I2C::init() {
   switch(_i2c_number) {
   case 1:
     _base_addr = I2C_1_BASE;
-    break;
-  case 2:
-    _base_addr = I2C_2_BASE;
-    break;
-  case 3:
-    _base_addr = I2C_3_BASE;
-    break;
-  }
 
-  // Setup the clock source
-  switch(_i2c_number) {
-  case 1:
+    // Clock Source
     RCC_CCIPR &= ~(BIT_12 | BIT_13);
     RCC_CCIPR |= BIT_13;
-    break;
-  case 2:
-    // In this case the PLL is the source of the I2C2 clock
-    break;
-  case 3:
-    RCC_CCIPR &= ~(BIT_16 | BIT_17);
-    RCC_CCIPR |= BIT_17;
-    break;
-  }
 
-  // Enable the clock to the I2C peripheral
-  switch(_i2c_number) {
-  case 1:
+    // Enable the clock
     RCC_APB1ENR |= BIT_21;
-    break;
-  case 2:
-    RCC_APB1ENR |= BIT_22;
-    break;
-  case 3:
-    RCC_APB1ENR |= BIT_30;
-    break;
-  }
 
-  // Setup the prescaler and hold times
-  // Defaulting to fast mode 400khz
-  switch(_i2c_number) {
-  case 1:
-    // Assumes a 16 mhz clock source
+    // Setup clock scaling for 400 kHz
     I2C_1_TIMINGR = 0;
     I2C_1_TIMINGR |= 0x9;  // SCLL
     I2C_1_TIMINGR |= 0x3 << 8; // SCLH
     I2C_1_TIMINGR |= 0x2 << 16; // SDADEL
     I2C_1_TIMINGR |= 0x3 << 20; // SCLDEL
     I2C_1_TIMINGR |= 0x1 << 28; // PRESC
+
+    // 7 bit addr mode
+    I2C_1_CR2 &= ~(BIT_11);
+
+    // Enable the peripheral
+    I2C_1_CR1 |= BIT_0;
+
     break;
   case 2:
-    // Assumes a 16 mhz clock source
+    _base_addr = I2C_2_BASE;
+
+    // Clock source is always the PLL
+
+    // Enable the clock
+    RCC_APB1ENR |= BIT_22;
+
+    // Setup clock scaling for 400 kHz
     I2C_2_TIMINGR = 0;
     I2C_2_TIMINGR |= 0x9;  // SCLL
     I2C_2_TIMINGR |= 0x3 << 8; // SCLH
     I2C_2_TIMINGR |= 0x2 << 16; // SDADEL
     I2C_2_TIMINGR |= 0x3 << 20; // SCLDEL
     I2C_2_TIMINGR |= 0x1 << 28; // PRESC
+
+    // 7 bit addr mode
+    I2C_2_CR2 &= ~(BIT_11);
+
+    // Enable the peripheral
+    I2C_2_CR1 |= BIT_0;
+
     break;
   case 3:
-    // Assumes a 16 mhz clock source
+    _base_addr = I2C_3_BASE;
+
+    // Clock source
+    RCC_CCIPR &= ~(BIT_16 | BIT_17);
+    RCC_CCIPR |= BIT_17;
+
+    // Enable the clock
+    RCC_APB1ENR |= BIT_30;
+
+    // Setup clock scaling
     I2C_3_TIMINGR = 0;
     I2C_3_TIMINGR |= 0x9;  // SCLL
     I2C_3_TIMINGR |= 0x3 << 8; // SCLH
     I2C_3_TIMINGR |= 0x2 << 16; // SDADEL
     I2C_3_TIMINGR |= 0x3 << 20; // SCLDEL
     I2C_3_TIMINGR |= 0x1 << 28; // PRESC
-    break;
-  }
 
-  // Set 7 bit address mode
-  switch(_i2c_number) {
-  case 1:
-    I2C_1_CR2 &= ~(BIT_11);
-    break;
-  case 2:
-    I2C_2_CR2 &= ~(BIT_11);
-    break;
-  case 3:
+    // 7 bit addr mode
     I2C_3_CR2 &= ~(BIT_11);
-    break;
-  }
 
-  // Enable the peripheral
-  switch(_i2c_number) {
-  case 1:
-    I2C_1_CR1 |= BIT_0;
-    break;
-  case 2:
-    I2C_2_CR1 |= BIT_0;
-    break;
-  case 3:
+    // Enable the peripheral
     I2C_3_CR1 |= BIT_0;
+
     break;
   }
 }

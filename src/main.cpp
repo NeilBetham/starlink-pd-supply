@@ -1,3 +1,5 @@
+#include "utils.h"
+
 #include "registers/rcc.h"
 #include "registers/gpio.h"
 #include "registers/flash.h"
@@ -12,12 +14,14 @@
 #include "output_en.h"
 #include "rtt.h"
 #include "time.h"
+#include "power_mux.h"
 
 I2C ptn5110_i2c(1);
 PTN5110 ptn5110_a(ptn5110_i2c, 0x52);
 PTN5110 ptn5110_b(ptn5110_i2c, 0x50);
-USBPDController controller_a(ptn5110_a);
-USBPDController controller_b(ptn5110_b);
+PowerMux power_mux;
+USBPDController controller_a(ptn5110_a, power_mux);
+USBPDController controller_b(ptn5110_b, power_mux);
 bool read_pending = false;
 
 void ExternInterrupt_15_4_ISR(void) {
@@ -25,7 +29,6 @@ void ExternInterrupt_15_4_ISR(void) {
   NVIC_ICPR |= BIT_7;
   EXTI_PR |= BIT_7;
 }
-
 
 int main() {
   // Up main clock frequency
@@ -57,8 +60,9 @@ int main() {
   // Init systick
   systick_init();
 
-  rtt_printf("----");
-  rtt_printf("Booting...");
+  // Make sure RTT gets inited
+  rtt_print("----\r\n");
+  rtt_print("Booting...\r\n");
 
   // Setup the I2C peripheral
   ptn5110_i2c.init();
@@ -100,8 +104,6 @@ int main() {
   controller_a.init();
   controller_b.init();
 
-  rtt_printf("Starlink PD Supply Booted");
-
   // Enable interruptS
   asm("CPSIE i");
 
@@ -115,8 +117,6 @@ int main() {
       controller_b.handle_alert();
       read_pending = false;
     }
-    controller_a.tick();
-    controller_b.tick();
   }
 
   return 0;

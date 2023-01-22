@@ -46,6 +46,12 @@ enum class DataMessageType : uint8_t {
   vendor_defined = 15
 };
 
+enum class SpecificationRev : uint8_t {
+  one_v_zero = 0,
+  two_v_zero,
+  reserved
+};
+
 // PD Message Header
 struct PACKED MessageHeader {
   uint8_t message_type: 4;
@@ -124,28 +130,29 @@ class USBPDController;
 // Classes representing different data messages from the source
 class SourceCapability {
 public:
-  SourceCapability(const PDObject object, uint8_t index);
+  SourceCapability() {};
+  SourceCapability(const PowerDataObject& object, uint8_t index);
 
-  PowerDataObjectType type() { return _pdo_type; };
-  uint32_t voltage() { return _voltage; };
-  uint32_t max_power() { return _power; };
-  bool is_battery();
+  PowerDataObjectType type() const { return _pdo_type; };
+  uint32_t voltage() const { return _voltage; };
+  uint32_t max_power() const { return _power; };
+  bool is_battery() const;
+  uint8_t index() const { return _index; };
 
 private:
   PowerDataObjectType _pdo_type = PowerDataObjectType::reserved;
   uint32_t _voltage = 0;
   uint32_t _power = 0;
   uint8_t _index = 0;
-
-  friend Request;
 };
 
 
 class SourceCapabilities {
 public:
-  SourceCapabilities(const PDObject* objects, uint8_t object_count);
-  const SourceCapability* caps() { return _capabilities; };
-  uint8_t count() { return _capability_count; };
+  SourceCapabilities() {};
+  SourceCapabilities(const PowerDataObject* objects, uint8_t object_count);
+  const SourceCapability* caps() const { return _capabilities; };
+  uint8_t count() const { return _capability_count; };
 
 private:
   SourceCapability _capabilities[MAX_CAPABILITIES] = {};
@@ -173,10 +180,11 @@ public:
   virtual ~ControllerDelegate() {};
 
   // Control Events
-  virtual void go_to_min_received() = 0;
-  virtual void accept_received() = 0;
-  virtual void reject_received() = 0;
-  virtual void ps_ready_received() = 0;
+  virtual void go_to_min_received(USBPDController& controller) = 0;
+  virtual void accept_received(USBPDController& controller) = 0;
+  virtual void reject_received(USBPDController& controller) = 0;
+  virtual void ps_ready_received(USBPDController& controller) = 0;
+  virtual void reset_received(USBPDController& controller) = 0;
 
   // Data events
   virtual void capabilities_received(USBPDController& controller, const SourceCapabilities& caps) = 0;

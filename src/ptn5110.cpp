@@ -1,6 +1,6 @@
 #include "ptn5110.h"
 
-#include <string.h>
+#include "utils.h"
 
 uint16_t PTN5110::get_register(uint8_t reg) {
   uint16_t buffer = 0;
@@ -31,7 +31,7 @@ bool PTN5110::tx_usb_pd_msg(uint32_t len, const uint8_t* buffer) {
   uint8_t tx_settings = 0x30;  // TX SOP message with 3 retries
   uint8_t tx_buff[128] = {0};
   tx_buff[0] = len;
-  memcpy(&tx_buff[1], buffer, len);
+  cpymem(&tx_buff[1], buffer, len);
   _i2c_port.write_to(_device_addr, 0x51, tx_buff, len + 1);
   _i2c_port.write_to(_device_addr, 0x50, &tx_settings, 1);
   return true;

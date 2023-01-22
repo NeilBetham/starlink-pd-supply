@@ -5,7 +5,6 @@
 #pragma once
 
 #include <stdint.h>
-#include <stdarg.h>
 
 #include "registers/helpers.h"
 
@@ -48,8 +47,7 @@ public:
   ~RTT();
 
   // Default 0 out / in buffer
-  int printf(const char* format, ...);
-  int vprintf(const char* format, va_list args);
+  int print(const char* message);
   void write(const void* buffer, uint32_t count);
   uint32_t write_space();
   void read(void* buffer, uint32_t count);
@@ -73,4 +71,4 @@ private:
 
 // Simple singleton to get access to a single RTT comm manager
 RTT& rtt();
-int rtt_printf(const char* format, ...);
+int rtt_print(const char* message);
