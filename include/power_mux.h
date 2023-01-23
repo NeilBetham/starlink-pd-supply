@@ -6,7 +6,7 @@
 
 #include "pd_protocol.h"
 
-#define REQUIRED_OUTPUT_POWER_MW 100000
+#define REQUIRED_OUTPUT_POWER_MW 93000000
 
 
 enum class ControllerIndex : uint8_t {

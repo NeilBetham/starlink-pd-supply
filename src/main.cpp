@@ -81,7 +81,6 @@ int main() {
   GPIO_B_OSPEEDR  |= (0x0000000F << 12);
 
   GPIO_B_PUPDR   &= ~(0x0000000F << 12);
-  GPIO_B_PUPDR    |= (0x00000005 << 12);
 
   GPIO_B_OTYPER   |= (0x00000003 << 6);
 
@@ -113,10 +112,13 @@ int main() {
 
   while(true) {
     if(read_pending)  {
+      rtt_print("PHY Int\r\n");
       controller_a.handle_alert();
       controller_b.handle_alert();
       read_pending = false;
     }
+    controller_a.tick();
+    controller_b.tick();
   }
 
   return 0;

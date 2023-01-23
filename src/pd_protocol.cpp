@@ -1,5 +1,6 @@
 #include "pd_protocol.h"
 
+#include "rtt.h"
 #include "utils.h"
 
 SourceCapability::SourceCapability(const PowerDataObject& object, uint8_t index) {
@@ -44,6 +45,7 @@ SourceCapabilities::SourceCapabilities(const PowerDataObject* objects, uint8_t o
   for(uint8_t index = 0; index < object_count; index++) {
     _capabilities[index] = SourceCapability(objects[index], index);
   }
+  _capability_count = object_count;
 }
 
 
@@ -51,7 +53,7 @@ Request::Request(const SourceCapability& capability, uint32_t power) {
   _pdo_type = capability.type();
   _voltage = capability.voltage();
   _power = power;
-  _pdo_index = capability.index();
+  _pdo_index = capability.index() + 1;
 }
 
 uint32_t Request::generate_pdo() {

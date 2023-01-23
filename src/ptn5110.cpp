@@ -17,12 +17,19 @@ bool PTN5110::set_register(uint8_t reg, uint16_t value) {
 
 bool PTN5110::rx_usb_pd_msg(uint32_t& len, uint8_t* buffer) {
   uint8_t rx_length = 0;
-  uint8_t rx_type = 0;
+  uint8_t temp_buffer[64] = {0};
 
   _i2c_port.read_from(_device_addr, 0x30, &rx_length, 1);
-  _i2c_port.read_from(_device_addr, 0x30, buffer, rx_length + 2);
+  if(rx_length < 1) {
+    len = 0;
+    return false;
+  }
 
-  len = rx_length;
+  _i2c_port.read_from(_device_addr, 0x30, &temp_buffer[0], rx_length + 1);
+
+  cpymem(buffer, temp_buffer + 2, rx_length - 1);
+
+  len = rx_length - 1;
 
   return true;
 }

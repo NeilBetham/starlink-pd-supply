@@ -72,18 +72,20 @@ void PowerMux::reset_received(USBPDController& controller) {
 void PowerMux::capabilities_received(USBPDController& controller, const SourceCapabilities& caps) {
   set_controller(controller);
 
-  // First request the first PDO with it's max power to keep the supply from shutting us down
-  get_controller_cap(controller) = caps.caps()[0];
-  controller.request_capability(get_controller_cap(controller));
-
   // Check the capabilities
   check_available_power();
-
-  rtt_print("Caps rx");
 }
 
 void PowerMux::set_controller(USBPDController& controller) {
   if(_control_a && _control_b) {
+    return;
+  }
+
+  if(_control_a == &controller) {
+    return;
+  }
+
+  if(_control_b == &controller) {
     return;
   }
 
@@ -156,10 +158,10 @@ void PowerMux::check_available_power() {
     }
 
     // Check Port B caps
-    for(uint8_t index = 0; index < port_a_cap_count; index++) {
-      if(port_a_max_powers[index] >= REQUIRED_OUTPUT_POWER_MW) {
+    for(uint8_t index = 0; index < port_b_cap_count; index++) {
+      if(port_b_max_powers[index] >= REQUIRED_OUTPUT_POWER_MW) {
         // This cap will work for what we need request it
-        _control_a->request_capability(_control_a->caps().caps()[index]);
+        _control_b->request_capability(_control_b->caps().caps()[index]);
         return;
       }
     }

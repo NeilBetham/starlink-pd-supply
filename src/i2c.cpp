@@ -16,13 +16,17 @@ void I2C::init() {
     // Enable the clock
     RCC_APB1ENR |= BIT_21;
 
-    // Setup clock scaling for 400 kHz
+    // Setup clock scaling for 100 kHz
     I2C_1_TIMINGR = 0;
-    I2C_1_TIMINGR |= 0x9;  // SCLL
-    I2C_1_TIMINGR |= 0x3 << 8; // SCLH
+    I2C_1_TIMINGR |= 0x13;  // SCLL
+    I2C_1_TIMINGR |= 0xF << 8; // SCLH
     I2C_1_TIMINGR |= 0x2 << 16; // SDADEL
-    I2C_1_TIMINGR |= 0x3 << 20; // SCLDEL
-    I2C_1_TIMINGR |= 0x1 << 28; // PRESC
+    I2C_1_TIMINGR |= 0x4 << 20; // SCLDEL
+    I2C_1_TIMINGR |= 0x3 << 28; // PRESC
+
+    // Setup the noise filter
+    I2C_1_CR1 &= ~(0xF << 8);
+    I2C_1_CR1 |= 0xF << 8;
 
     // 7 bit addr mode
     I2C_1_CR2 &= ~(BIT_11);
@@ -102,12 +106,12 @@ int I2C::write_to(uint8_t addr, uint8_t reg, const uint8_t* data, uint32_t len) 
 
   // Start writing bytes
   // Register addr first
-  while(!(REGISTER(_base_addr + I2C_ISR_OFFSET) & BIT_1));
+  while(!(REGISTER(_base_addr + I2C_ISR_OFFSET) & BIT_0));
   REGISTER(_base_addr + I2C_TXDR_OFFSET) = reg;
 
   // Then data
   for(uint32_t index = 0; index < len; index++) {
-    while(!(REGISTER(_base_addr + I2C_ISR_OFFSET) & BIT_1));
+    while(!(REGISTER(_base_addr + I2C_ISR_OFFSET) & BIT_0));
     REGISTER(_base_addr + I2C_TXDR_OFFSET) = data[index];
   }
 

@@ -10,7 +10,7 @@
 
 enum class PDState {
   unknown = 0,
-  init,         // Inital state to be entered while waiting for a src caps message
+  init,         // State to be entered while waiting for a src caps message
   caps_wait,    // A caps request has been sent we're waiting for a repsonse
   need_resp,    // We've sent a pd request and are waiting for a respose
   accepted,     // Src has accepted the request waiting for ps_rdy
@@ -35,14 +35,15 @@ public:
   // AlertDelegate
   void handle_alert();
 
-  // Send caps request
-  void send_caps_req();
-  void soft_reset();
+  void send_control_msg(ControlMessageType message_type);
   void hard_reset();
 
   const SourceCapabilities& caps() { return _source_caps; };
   void request_capability(const SourceCapability& capability);
   void request_capability(const SourceCapability& capability, uint32_t power);
+
+  // Peridodic interface for handling timer based events
+  void tick();
 
 private:
   PTN5110& _phy;
@@ -57,4 +58,6 @@ private:
 
   uint8_t _msg_id_counter = 0;
   PDState _state = PDState::unknown;
+  uint32_t _caps_timer = 0;
+  bool _cc_partner = false;
 };
