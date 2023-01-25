@@ -185,6 +185,7 @@ public:
   virtual void reject_received(USBPDController& controller) = 0;
   virtual void ps_ready_received(USBPDController& controller) = 0;
   virtual void reset_received(USBPDController& controller) = 0;
+  virtual void controller_disconnected(USBPDController& controller) = 0;
 
   // Data events
   virtual void capabilities_received(USBPDController& controller, const SourceCapabilities& caps) = 0;

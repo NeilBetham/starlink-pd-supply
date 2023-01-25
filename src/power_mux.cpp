@@ -67,6 +67,26 @@ void PowerMux::reset_received(USBPDController& controller) {
   reset();
 }
 
+void PowerMux::controller_disconnected(USBPDController& controller) {
+  switch(get_controller(controller)) {
+    case ControllerIndex::a:
+      _port_a_accepted = false;
+      _port_a_ps_rdy = false;
+      _port_a_selected_cap = SourceCapability();
+      break;
+    case ControllerIndex::b:
+      _port_b_accepted = false;
+      _port_b_ps_rdy = false;
+      _port_a_selected_cap = SourceCapability();
+      break;
+    default:
+      break;
+  }
+
+  check_if_output_is_ready();
+  rtt_print("Cntrl discon\r\n");
+}
+
 
 // Data events
 void PowerMux::capabilities_received(USBPDController& controller, const SourceCapabilities& caps) {
@@ -153,8 +173,15 @@ void PowerMux::check_available_power() {
       if(port_a_max_powers[index] >= REQUIRED_OUTPUT_POWER_MW) {
         // This cap will work for what we need request it
         _control_a->request_capability(_control_a->caps().caps()[index]);
+        _port_a_selected_cap = _control_a->caps().caps()[index];
         return;
       }
+    }
+
+    // Check if we selected a capability, if not request the min power level
+    if(_control_a && _port_a_selected_cap.max_power() < 1) {
+      _port_a_selected_cap = _control_a->caps().caps()[0];
+      _control_a->request_capability(_port_a_selected_cap);
     }
 
     // Check Port B caps
@@ -162,8 +189,15 @@ void PowerMux::check_available_power() {
       if(port_b_max_powers[index] >= REQUIRED_OUTPUT_POWER_MW) {
         // This cap will work for what we need request it
         _control_b->request_capability(_control_b->caps().caps()[index]);
+        _port_b_selected_cap = _control_b->caps().caps()[index];
         return;
       }
+    }
+
+    // Check if we selected a capability, if not request the min power level
+    if(_control_b && _port_b_selected_cap.max_power() < 1) {
+      _port_b_selected_cap = _control_b->caps().caps()[0];
+      _control_b->request_capability(_port_b_selected_cap);
     }
   } else if(_supply_count == 2) {
     // We have two supplies so try to load balance between the two
@@ -216,17 +250,22 @@ void PowerMux::check_if_output_is_ready() {
     if(_port_a_accepted && _port_a_ps_rdy && total_available_power() >= REQUIRED_OUTPUT_POWER_MW) {
       output_en::set_state(true);
       status_light::set_color(0, 1, 0);
+      return;
     }
     if(_port_b_accepted && _port_b_ps_rdy && total_available_power() >= REQUIRED_OUTPUT_POWER_MW) {
       output_en::set_state(true);
       status_light::set_color(0, 1, 0);
+      return;
     }
   } else if(_supply_count == 2) {
     if(_port_a_accepted && _port_b_accepted && _port_a_ps_rdy && _port_b_ps_rdy && total_available_power() > REQUIRED_OUTPUT_POWER_MW) {
       output_en::set_state(true);
       status_light::set_color(0, 1, 0);
+      return;
     }
   }
+  output_en::set_state(false);
+  status_light::set_color(1, 1, 0);
 }
 
 void PowerMux::reset() {

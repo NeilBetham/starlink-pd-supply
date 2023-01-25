@@ -78,7 +78,7 @@ int main() {
   GPIO_B_MODER    |= (0x0000000A << 12);
 
   GPIO_B_OSPEEDR &= ~(0x0000000F << 12);
-  GPIO_B_OSPEEDR  |= (0x0000000F << 12);
+  GPIO_B_OSPEEDR  |= (0x00000000 << 12);
 
   GPIO_B_PUPDR   &= ~(0x0000000F << 12);
 
@@ -112,9 +112,11 @@ int main() {
 
   while(true) {
     if(read_pending)  {
-      rtt_print("PHY Int\r\n");
-      controller_a.handle_alert();
-      controller_b.handle_alert();
+      while(!(GPIO_A_IDR & BIT_7)) {
+        rtt_print("PHY Int\r\n");
+        controller_a.handle_alert();
+        controller_b.handle_alert();
+      }
       read_pending = false;
     }
     controller_a.tick();

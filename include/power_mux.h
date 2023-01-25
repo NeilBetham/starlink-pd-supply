@@ -28,6 +28,7 @@ public:
   void reject_received(USBPDController& controller);
   void ps_ready_received(USBPDController& controller);
   void reset_received(USBPDController& controller);
+  void controller_disconnected(USBPDController& controller);
 
   // Data events
   void capabilities_received(USBPDController& controller, const SourceCapabilities& caps);

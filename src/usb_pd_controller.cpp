@@ -13,6 +13,8 @@ void USBPDController::init() {
   _state = PDState::unknown;
 
   // Configure the PHY
+  _phy.set_register(PHY_REG_TCPC_CTL, 0x2 << 2);  // Enable the TCPC to stretch the clock line
+  _phy.set_register(PHY_REG_EXT_STAT_MASK, 0x0);  // Enable the TCPC to stretch the clock line
   _phy.set_register(PHY_REG_ROLE_CTL, 0x2A);  // 3A Sink only
   _phy.set_register(PHY_REG_RECV_DETECT, BIT_0 | BIT_5);  // SOP and hard resets
   _phy.set_register(PHY_REG_MSG_HDR_INFO, 0x02);  // Sink only, PD rev 2.0
@@ -27,7 +29,6 @@ void USBPDController::init() {
 }
 
 void USBPDController::handle_alert() {
-  rtt_print("Handle Alert\r\n");
   // Read the alert status off of the HPY
   uint16_t alert_status = _phy.get_register(PHY_REG_ALERT);
   while(alert_status > 0) {
@@ -55,6 +56,8 @@ void USBPDController::handle_alert() {
       // RX Hard reset
       rtt_print("Hard reset\r\n");
       _phy.set_register(PHY_REG_ALERT, BIT_3);
+      _msg_id_counter = 0;
+      _delegate.controller_disconnected(*this);
     }
 
     if(alert_status & BIT_4) {
@@ -97,8 +100,17 @@ void USBPDController::handle_alert() {
 
     if(alert_status & BIT_10) {
       // RX Buff Overflow
+      // If we are here something has gone wrong
+      // read all the contents and move on
       rtt_print("RX buf ovfl\r\n");
-      _phy.set_register(PHY_REG_ALERT, BIT_10);
+      uint16_t readable_bytes = _phy.get_register(PHY_REG_READ_BYTE_COUNT);
+      uint8_t msg_buffer[150] = {0};
+      uint32_t msg_len = 0;
+      while((readable_bytes & 0x0F) > 0) {
+        _phy.rx_usb_pd_msg(msg_len, (uint8_t*)msg_buffer);
+        readable_bytes = _phy.get_register(PHY_REG_READ_BYTE_COUNT);
+      }
+      _phy.set_register(PHY_REG_ALERT, BIT_10 | BIT_2);
     }
 
     if(alert_status & BIT_11) {
@@ -114,7 +126,6 @@ void USBPDController::handle_alert() {
 
     if(alert_status & BIT_13) {
       // Extended Status Changed
-      rtt_print("Ext stat\r\n");
       _phy.set_register(PHY_REG_ALERT, BIT_13);
     }
 
@@ -201,6 +212,8 @@ void USBPDController::handle_msg_rx() {
         break;
       case ControlMessageType::soft_reset:
         rtt_print("Soft reset\r\n");
+        _msg_id_counter = 0;
+        send_control_msg(ControlMessageType::accept);
         _delegate.reset_received(*this);
       default:
         break;
@@ -246,6 +259,9 @@ void USBPDController::handle_cc_status() {
     _phy.set_register(PHY_REG_TCPC_CTL, BIT_0);
   }
 
+  if(_cc_partner && (cc1_status | cc2_status) == 0) {
+    _delegate.controller_disconnected(*this);
+  }
   _cc_partner = cc1_status || cc2_status;
 }
 

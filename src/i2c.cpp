@@ -18,15 +18,11 @@ void I2C::init() {
 
     // Setup clock scaling for 100 kHz
     I2C_1_TIMINGR = 0;
-    I2C_1_TIMINGR |= 0x13;  // SCLL
-    I2C_1_TIMINGR |= 0xF << 8; // SCLH
-    I2C_1_TIMINGR |= 0x2 << 16; // SDADEL
-    I2C_1_TIMINGR |= 0x4 << 20; // SCLDEL
-    I2C_1_TIMINGR |= 0x3 << 28; // PRESC
-
-    // Setup the noise filter
-    I2C_1_CR1 &= ~(0xF << 8);
-    I2C_1_CR1 |= 0xF << 8;
+    I2C_1_TIMINGR |= 0x4;  // SCLL
+    I2C_1_TIMINGR |= 0x2 << 8; // SCLH
+    I2C_1_TIMINGR |= 0x0 << 16; // SDADEL
+    I2C_1_TIMINGR |= 0x2 << 20; // SCLDEL
+    I2C_1_TIMINGR |= 0x0 << 28; // PRESC
 
     // 7 bit addr mode
     I2C_1_CR2 &= ~(BIT_11);
@@ -89,7 +85,7 @@ void I2C::init() {
 int I2C::write_to(uint8_t addr, uint8_t reg, const uint8_t* data, uint32_t len) {
   // Set slave address
   REGISTER(_base_addr + I2C_CR2_OFFSET) &= ~(0x000003FF);
-  REGISTER(_base_addr + I2C_CR2_OFFSET) |= (addr << 1);
+  REGISTER(_base_addr + I2C_CR2_OFFSET) |= ((addr & 0xFF) << 1);
 
   // Set transfer dir
   REGISTER(_base_addr + I2C_CR2_OFFSET) &= ~BIT_10;
