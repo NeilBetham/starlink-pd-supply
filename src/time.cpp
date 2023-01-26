@@ -28,7 +28,7 @@ void sleep(uint32_t seconds) {
 void msleep(uint32_t milli_seconds) {
   uint32_t start_time = system_time();
   uint32_t goal_time = start_time + milli_seconds;
-  while(system_time() != goal_time);
+  while(system_time() <= goal_time);
 }
 
 uint32_t system_time() {

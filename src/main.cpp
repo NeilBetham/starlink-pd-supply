@@ -60,6 +60,9 @@ int main() {
   // Init systick
   systick_init();
 
+  // Add a small delay for things to stabilize
+  msleep(10);
+
   // Make sure RTT gets inited
   rtt_print("----\r\n");
   rtt_print("Booting...\r\n");
@@ -113,7 +116,6 @@ int main() {
   while(true) {
     if(read_pending)  {
       while(!(GPIO_A_IDR & BIT_7)) {
-        rtt_print("PHY Int\r\n");
         controller_a.handle_alert();
         controller_b.handle_alert();
       }

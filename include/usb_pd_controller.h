@@ -37,6 +37,7 @@ public:
 
   void send_control_msg(ControlMessageType message_type);
   void hard_reset();
+  void set_vbus_sink(bool enabled);
 
   const SourceCapabilities& caps() { return _source_caps; };
   void request_capability(const SourceCapability& capability);
@@ -59,5 +60,6 @@ private:
   uint8_t _msg_id_counter = 0;
   PDState _state = PDState::unknown;
   uint32_t _caps_timer = 0;
+  uint32_t _caps_reset_timer = 0;
   bool _cc_partner = false;
 };

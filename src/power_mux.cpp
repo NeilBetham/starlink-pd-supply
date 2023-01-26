@@ -49,9 +49,11 @@ void PowerMux::ps_ready_received(USBPDController& controller) {
   switch(get_controller(controller)) {
      case ControllerIndex::a:
       _port_a_ps_rdy = true;
+      _control_a->set_vbus_sink(true);
       break;
     case ControllerIndex::b:
       _port_b_ps_rdy = true;
+      _control_a->set_vbus_sink(true);
       break;
     default:
       break;
@@ -91,6 +93,18 @@ void PowerMux::controller_disconnected(USBPDController& controller) {
 // Data events
 void PowerMux::capabilities_received(USBPDController& controller, const SourceCapabilities& caps) {
   set_controller(controller);
+
+  // For some reason some sources will reset after accepting...
+  if((_port_a_accepted || _port_a_ps_rdy) && get_controller(controller) == ControllerIndex::a) {
+    rtt_print("Src reset\r\n");
+    controller_disconnected(controller);
+  } else if((_port_b_accepted || _port_b_ps_rdy) && get_controller(controller) == ControllerIndex::b) {
+    rtt_print("Src reset\r\n");
+    controller_disconnected(controller);
+  }
+
+  // Re check if we can sustain the output power
+  check_if_output_is_ready();
 
   // Check the capabilities
   check_available_power();
@@ -202,31 +216,37 @@ void PowerMux::check_available_power() {
   } else if(_supply_count == 2) {
     // We have two supplies so try to load balance between the two
     uint32_t target_power = REQUIRED_OUTPUT_POWER_MW / 2;
-    uint8_t port_a_potential_cap = 0;
-    uint8_t port_b_potential_cap = 0;
+    uint8_t port_a_max_power_cap = 0;
+    uint32_t port_a_max_power = 0;
+    uint8_t port_b_max_power_cap = 0;
+    uint32_t port_b_max_power = 0;
 
     // Check Port A for the target power level
     for(uint8_t index = 0; index < port_a_cap_count; index++) {
-      if(port_a_max_powers[index] >= target_power) {
-        port_a_potential_cap = index;
+      if(port_a_max_powers[index] >= port_a_max_power) {
+        port_a_max_power = port_a_max_powers[index];
+        port_a_max_power_cap = index;
       }
     }
 
     // Check Port B for the targt power level
     for(uint8_t index = 0; index < port_b_cap_count; index++) {
-      if(port_b_max_powers[index] >= target_power) {
-        port_b_potential_cap = index;
+      if(port_b_max_powers[index] >= port_b_max_power) {
+        port_b_max_power = port_b_max_powers[index];
+        port_b_max_power_cap = index;
       }
     }
 
     // Check if the potential caps have the same voltage level
-    const SourceCapability& port_a_cap = _control_a->caps().caps()[port_a_potential_cap];
-    const SourceCapability& port_b_cap = _control_b->caps().caps()[port_b_potential_cap];
+    const SourceCapability& port_a_cap = _control_a->caps().caps()[port_a_max_power_cap];
+    const SourceCapability& port_b_cap = _control_b->caps().caps()[port_b_max_power_cap];
     if(port_a_cap.voltage() != port_b_cap.voltage()) {
+      rtt_print("Potents V!=\r\n");
       return;
     }
 
     // Next up request the voltage level from both supplies
+    rtt_print("Req load balance caps\r\n");
     _port_a_selected_cap = port_a_cap;
     _port_b_selected_cap = port_b_cap;
 
@@ -248,17 +268,21 @@ void PowerMux::check_if_output_is_ready() {
   // Check that we have enough power and the supplies have said we can draw power
   if(_supply_count == 1) {
     if(_port_a_accepted && _port_a_ps_rdy && total_available_power() >= REQUIRED_OUTPUT_POWER_MW) {
+      _control_a->set_vbus_sink(true);
       output_en::set_state(true);
       status_light::set_color(0, 1, 0);
       return;
     }
     if(_port_b_accepted && _port_b_ps_rdy && total_available_power() >= REQUIRED_OUTPUT_POWER_MW) {
+      _control_b->set_vbus_sink(true);
       output_en::set_state(true);
       status_light::set_color(0, 1, 0);
       return;
     }
   } else if(_supply_count == 2) {
     if(_port_a_accepted && _port_b_accepted && _port_a_ps_rdy && _port_b_ps_rdy && total_available_power() > REQUIRED_OUTPUT_POWER_MW) {
+      _control_a->set_vbus_sink(true);
+      _control_b->set_vbus_sink(true);
       output_en::set_state(true);
       status_light::set_color(0, 1, 0);
       return;

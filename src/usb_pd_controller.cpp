@@ -14,7 +14,7 @@ void USBPDController::init() {
 
   // Configure the PHY
   _phy.set_register(PHY_REG_TCPC_CTL, 0x2 << 2);  // Enable the TCPC to stretch the clock line
-  _phy.set_register(PHY_REG_EXT_STAT_MASK, 0x0);  // Enable the TCPC to stretch the clock line
+  _phy.set_register(PHY_REG_ALERT_MASK, 0x5FFF);
   _phy.set_register(PHY_REG_ROLE_CTL, 0x2A);  // 3A Sink only
   _phy.set_register(PHY_REG_RECV_DETECT, BIT_0 | BIT_5);  // SOP and hard resets
   _phy.set_register(PHY_REG_MSG_HDR_INFO, 0x02);  // Sink only, PD rev 2.0
@@ -30,7 +30,8 @@ void USBPDController::init() {
 
 void USBPDController::handle_alert() {
   // Read the alert status off of the HPY
-  uint16_t alert_status = _phy.get_register(PHY_REG_ALERT);
+  uint16_t alert_mask = _phy.get_register(PHY_REG_ALERT_MASK);
+  uint16_t alert_status = _phy.get_register(PHY_REG_ALERT) & alert_mask;
   while(alert_status > 0) {
     if(alert_status & BIT_0) {
       // CC Status Alert
@@ -48,7 +49,6 @@ void USBPDController::handle_alert() {
 
     if(alert_status & BIT_2) {
       // SOP* RX
-      rtt_print("Msg RX\r\n");
       handle_msg_rx();
     }
 
@@ -140,7 +140,7 @@ void USBPDController::handle_alert() {
       rtt_print("Vendor RX\r\n");
       _phy.set_register(PHY_REG_ALERT, BIT_15);
     }
-    alert_status = _phy.get_register(PHY_REG_ALERT);
+    alert_status = _phy.get_register(PHY_REG_ALERT) & alert_mask;
   }
 }
 
@@ -161,6 +161,14 @@ void USBPDController::hard_reset() {
   _phy.hard_reset();
 }
 
+void USBPDController::set_vbus_sink(bool enabled) {
+  if(enabled) {
+    _phy.set_register(PHY_REG_COMMAND, 0x55);
+  } else {
+    _phy.set_register(PHY_REG_COMMAND, 0x44);
+  }
+}
+
 void USBPDController::request_capability(const SourceCapability& capability) {
   request_capability(capability, capability.max_power());
 }
@@ -172,8 +180,18 @@ void USBPDController::request_capability(const SourceCapability& capability, uin
 
 void USBPDController::tick() {
   if(_cc_partner && system_time() > (_caps_timer + 100) && _state == PDState::unknown) {
+    // We know there is someone to talk to so ask for capabilities
     send_control_msg(ControlMessageType::get_source_cap);
     _state = PDState::init;
+    _caps_reset_timer = system_time();
+  }
+
+  if(_cc_partner && system_time() > (_caps_reset_timer + 100) && _state == PDState::init) {
+    // We have sent a caps request but received no response, trigger a hard reset
+    send_control_msg(ControlMessageType::soft_reset);
+    _msg_id_counter = 0;
+    _state = PDState::unknown;
+    _caps_timer = system_time();
   }
 }
 
@@ -223,6 +241,7 @@ void USBPDController::handle_msg_rx() {
     switch(message_type) {
       case DataMessageType::source_capabilities:
         rtt_print("Caps RX\r\n");
+        _state = PDState::caps_wait;
         handle_src_caps_msg(msg_buffer, msg_length);
         break;
       case DataMessageType::bist:
