@@ -179,14 +179,15 @@ void USBPDController::request_capability(const SourceCapability& capability, uin
 }
 
 void USBPDController::tick() {
-  if(_cc_partner && system_time() > (_caps_timer + 100) && _state == PDState::unknown) {
+  if(_caps_rx_attempts < 10 && _cc_partner && system_time() > (_caps_timer + 100) && _state == PDState::unknown) {
     // We know there is someone to talk to so ask for capabilities
     send_control_msg(ControlMessageType::get_source_cap);
+    _caps_rx_attempts++;
     _state = PDState::init;
     _caps_reset_timer = system_time();
   }
 
-  if(_cc_partner && system_time() > (_caps_reset_timer + 100) && _state == PDState::init) {
+  if(_caps_rx_attempts < 10 && _cc_partner && system_time() > (_caps_reset_timer + 100) && _state == PDState::init) {
     // We have sent a caps request but received no response, trigger a hard reset
     send_control_msg(ControlMessageType::soft_reset);
     _msg_id_counter = 0;

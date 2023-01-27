@@ -62,4 +62,5 @@ private:
   uint32_t _caps_timer = 0;
   uint32_t _caps_reset_timer = 0;
   bool _cc_partner = false;
+  uint32_t _caps_rx_attempts = 0;
 };

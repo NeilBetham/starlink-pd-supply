@@ -196,6 +196,7 @@ void PowerMux::check_available_power() {
     if(_control_a && _port_a_selected_cap.max_power() < 1) {
       _port_a_selected_cap = _control_a->caps().caps()[0];
       _control_a->request_capability(_port_a_selected_cap);
+      rtt_print("1 Sup, not enough power\r\n");
     }
 
     // Check Port B caps
@@ -212,6 +213,7 @@ void PowerMux::check_available_power() {
     if(_control_b && _port_b_selected_cap.max_power() < 1) {
       _port_b_selected_cap = _control_b->caps().caps()[0];
       _control_b->request_capability(_port_b_selected_cap);
+      rtt_print("1 Sup, not enough power\r\n");
     }
   } else if(_supply_count == 2) {
     // We have two supplies so try to load balance between the two
