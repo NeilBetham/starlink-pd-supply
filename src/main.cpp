@@ -28,9 +28,8 @@ int main() {
   for(uint32_t index = 0; index < 200000; index++);
   status_light::set_color(1, 1, 1);
 
-
-  // Up main clock frequency
-  // Turn off PLL and wait for it be ready
+  // Setup core clock to be 64MHz
+  // Turn off PLL and wait for it to stop
   RCC_CR &= ~(BIT_24);
   while(RCC_CR & BIT_25);
 
@@ -39,13 +38,13 @@ int main() {
   while(RCC_CR & BIT_2);
 
   // Set pll source, multiplier and divisior for 64 MHz
-  RCC_PLL_CFGR |=   0x00000002;  // Set PLL source to HSI16
-  RCC_PLL_CFGR &= ~(0x00000007 << 4);  // Set PLL input scaler M to 1
-  RCC_PLL_CFGR &= ~(0x0000007F << 8);  // Set PLL mult factor to 8
-  RCC_PLL_CFGR |=   0x00001000 << 8;  // Set PLL mult factor to 8
-  RCC_PLL_CFGR |=   BIT_28;  // Enable PLL R output
+  RCC_PLL_CFGR |=   0x00000002;         // Set PLL source to HSI16
+  RCC_PLL_CFGR &= ~(0x00000007 << 4);   // Set PLL input scaler M to 1
+  RCC_PLL_CFGR &= ~(0x0000007F << 8);   // Set PLL mult factor to 8
+  RCC_PLL_CFGR |=   0x00001000 << 8;    // Set PLL mult factor to 8
+  RCC_PLL_CFGR |=   BIT_28;             // Enable PLL R output
   RCC_PLL_CFGR &= ~(0x00000007 << 29);  // Set R output scalar to 2
-  RCC_PLL_CFGR |=   0x00000001 << 29;  // Set R output scalar to 2
+  RCC_PLL_CFGR |=   0x00000001 << 29;   // Set R output scalar to 2
 
   // Set flash wait states
   FLASH_ACR &= ~(0x7);

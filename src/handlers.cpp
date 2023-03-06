@@ -100,8 +100,8 @@ const VectorTableEntry vectors[] = {
   ExternInterrupt_3_2_ISR,    // 0x58
   ExternInterrupt_15_4_ISR,   // 0x5C
   PD1_PD2_USB_ISR,            // 0x60
-  DMA1Channel_1_ISR,           // 0x64
-  DMA1Channel_2_3_ISR,         // 0x68
+  DMA1Channel_1_ISR,          // 0x64
+  DMA1Channel_2_3_ISR,        // 0x68
   DMA_1_2_MUX_Channel_ISR,    // 0x6C
   ADC_Comp_ISR,               // 0x70
   Timer_1_ISR,                // 0x74
