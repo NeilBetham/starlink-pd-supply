@@ -14,7 +14,7 @@ void I2C::init() {
     RCC_CCIPR |= BIT_13;
 
     // Enable the clock
-    RCC_APB1ENR |= BIT_21;
+    RCC_APBENR1 |= BIT_21;
 
     // Setup clock scaling for 100 kHz
     I2C_1_TIMINGR = 0;
@@ -37,7 +37,7 @@ void I2C::init() {
     // Clock source is always the PLL
 
     // Enable the clock
-    RCC_APB1ENR |= BIT_22;
+    RCC_APBENR1 |= BIT_22;
 
     // Setup clock scaling for 400 kHz
     I2C_2_TIMINGR = 0;
@@ -62,7 +62,7 @@ void I2C::init() {
     RCC_CCIPR |= BIT_17;
 
     // Enable the clock
-    RCC_APB1ENR |= BIT_30;
+    RCC_APBENR1 |= BIT_30;
 
     // Setup clock scaling
     I2C_3_TIMINGR = 0;

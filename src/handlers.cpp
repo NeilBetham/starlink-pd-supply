@@ -32,34 +32,38 @@ DEFAULT void ExternInterrupt_0_1_ISR(void);
 DEFAULT void ExternInterrupt_3_2_ISR(void);
 DEFAULT void ExternInterrupt_15_4_ISR(void);
 
-DEFAULT void DMAChannel_1_ISR(void);
-DEFAULT void DMAChannel_3_2_ISR(void);
-DEFAULT void DMAChannel_7_4_ISR(void);
+DEFAULT void PD1_PD2_USB_ISR(void);
+
+DEFAULT void DMA1Channel_1_ISR(void);
+DEFAULT void DMA1Channel_2_3_ISR(void);
+DEFAULT void DMA_1_2_MUX_Channel_ISR(void);
 
 DEFAULT void ADC_Comp_ISR(void);
 
-DEFAULT void LPTimer_ISR(void);
-
+DEFAULT void Timer_1_ISR(void);
+DEFAULT void Timer_1CC_ISR(void);
 DEFAULT void Timer_2_ISR(void);
-DEFAULT void Timer_3_ISR(void);
+DEFAULT void Timer_3_4_ISR(void);
 DEFAULT void Timer_6_ISR(void);
 DEFAULT void Timer_7_ISR(void);
-DEFAULT void Timer_21_ISR(void);
-DEFAULT void Timer_22_ISR(void);
+DEFAULT void Timer_14_ISR(void);
+DEFAULT void Timer_15_ISR(void);
+DEFAULT void Timer_16_FD_CAN0_ISR(void);
+DEFAULT void Timer_17_FD_CAN1_ISR(void);
 
 DEFAULT void I2C_1_ISR(void);
-DEFAULT void I2C_2_ISR(void);
-DEFAULT void I2C_3_ISR(void);
+DEFAULT void I2C_2_3_ISR(void);
 
 DEFAULT void SPI_1_ISR(void);
-DEFAULT void SPI_2_ISR(void);
-
-DEFAULT void LPUART_1_AES_ISR(void);
+DEFAULT void SPI_2_3_ISR(void);
 
 DEFAULT void USART_1_ISR(void);
-DEFAULT void USART_2_ISR(void);
-DEFAULT void USART_4_5_ISR(void);
+DEFAULT void USART_2_LP2_ISR(void);
+DEFAULT void USART_3_4_5_6_LP1_ISR(void);
 
+DEFAULT void CEC_ISR(void);
+
+DEFAULT void AES_RNG_ISR(void);
 
 // Vector Table Element
 typedef void (*ISRHandler)(void);
@@ -95,28 +99,30 @@ const VectorTableEntry vectors[] = {
   ExternInterrupt_0_1_ISR,    // 0x54
   ExternInterrupt_3_2_ISR,    // 0x58
   ExternInterrupt_15_4_ISR,   // 0x5C
-  0,                          // 0x60
-  DMAChannel_1_ISR,           // 0x64
-  DMAChannel_3_2_ISR,         // 0x68
-  DMAChannel_7_4_ISR,         // 0x6C
+  PD1_PD2_USB_ISR,            // 0x60
+  DMA1Channel_1_ISR,           // 0x64
+  DMA1Channel_2_3_ISR,         // 0x68
+  DMA_1_2_MUX_Channel_ISR,    // 0x6C
   ADC_Comp_ISR,               // 0x70
-  LPTimer_ISR,                // 0x74
-  USART_4_5_ISR,              // 0x78
+  Timer_1_ISR,                // 0x74
+  Timer_1CC_ISR,              // 0x78
   Timer_2_ISR,                // 0x7C
-  Timer_3_ISR,                // 0x80
+  Timer_3_4_ISR,              // 0x80
   Timer_6_ISR,                // 0x84
   Timer_7_ISR,                // 0x88
-  0,                          // 0x8C
-  Timer_21_ISR,               // 0x90
-  I2C_3_ISR,                  // 0x94
-  Timer_22_ISR,               // 0x98
+  Timer_14_ISR,               // 0x8C
+  Timer_15_ISR,               // 0x90
+  Timer_16_FD_CAN0_ISR,       // 0x94
+  Timer_17_FD_CAN1_ISR,       // 0x98
   I2C_1_ISR,                  // 0x9C
-  I2C_2_ISR,                  // 0xA0
+  I2C_2_3_ISR,                // 0xA0
   SPI_1_ISR,                  // 0xA4
-  SPI_2_ISR,                  // 0xA8
+  SPI_2_3_ISR,                // 0xA8
   USART_1_ISR,                // 0xAC
-  USART_2_ISR,                // 0xB0
-  LPUART_1_AES_ISR            // 0xB4
+  USART_2_LP2_ISR,            // 0xB0
+  USART_3_4_5_6_LP1_ISR,      // 0xB4
+  CEC_ISR,                    // 0xB8
+  AES_RNG_ISR                 // 0xBC
 };
 
 

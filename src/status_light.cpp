@@ -4,29 +4,29 @@
 #include "registers/gpio.h"
 
 void status_light::init() {
-  RCC_IOPENR |= BIT_0;
-  GPIO_A_MODER  &= ~(0x0030000F);
-  GPIO_A_MODER  |=   0x00100005;
-  GPIO_A_OTYPER |=   0x00000403;
-  GPIO_A_ODR    |=   0x00000403;
+  RCC_IOPENR |= BIT_1;
+  GPIO_B_MODER  &= ~(0x00003F00);
+  GPIO_B_MODER  |=   0x00001500;
+  GPIO_B_OTYPER |=   0x00000070;
+  GPIO_B_ODR    |=   0x00000070;
 }
 
 void status_light::set_color(uint32_t red, uint32_t green, uint32_t blue) {
   if(red > 0) {
-    GPIO_A_ODR &= ~BIT_0;
+    GPIO_B_ODR &= ~BIT_4;
   } else {
-    GPIO_A_ODR |= BIT_0;
+    GPIO_B_ODR |= BIT_4;
   }
 
   if(green > 0) {
-    GPIO_A_ODR &= ~BIT_1;
+    GPIO_B_ODR &= ~BIT_5;
   } else {
-    GPIO_A_ODR |= BIT_1;
+    GPIO_B_ODR |= BIT_5;
   }
 
   if(blue > 0) {
-    GPIO_A_ODR &= ~BIT_10;
+    GPIO_B_ODR &= ~BIT_6;
   } else {
-    GPIO_A_ODR |= BIT_10;
+    GPIO_B_ODR |= BIT_6;
   }
 }

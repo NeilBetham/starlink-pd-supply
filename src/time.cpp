@@ -2,7 +2,7 @@
 
 #include "registers/core.h"
 
-#define CYCLES_PER_MS 32000
+#define CYCLES_PER_MS 64000
 
 static volatile uint32_t msec_clock = 0;
 

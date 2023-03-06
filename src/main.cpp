@@ -8,7 +8,6 @@
 #include "registers/core.h"
 
 #include "i2c.h"
-#include "ptn5110.h"
 #include "usb_pd_controller.h"
 #include "status_light.h"
 #include "output_en.h"
@@ -16,46 +15,49 @@
 #include "time.h"
 #include "power_mux.h"
 
-I2C ptn5110_i2c(1);
-PTN5110 ptn5110_a(ptn5110_i2c, 0x52);
-PTN5110 ptn5110_b(ptn5110_i2c, 0x50);
-PowerMux power_mux;
-USBPDController controller_a(ptn5110_a, power_mux);
-USBPDController controller_b(ptn5110_b, power_mux);
-bool read_pending = false;
-
-void ExternInterrupt_15_4_ISR(void) {
-  read_pending = true;
-  NVIC_ICPR |= BIT_7;
-  EXTI_PR |= BIT_7;
-}
 
 int main() {
+  // Init status light
+  // LED Hello World
+  status_light::init();
+  status_light::set_color(1, 0, 0);
+  for(uint32_t index = 0; index < 200000; index++);
+  status_light::set_color(0, 1, 0);
+  for(uint32_t index = 0; index < 200000; index++);
+  status_light::set_color(0, 0, 1);
+  for(uint32_t index = 0; index < 200000; index++);
+  status_light::set_color(1, 1, 1);
+
+
   // Up main clock frequency
   // Turn off PLL and wait for it be ready
   RCC_CR &= ~(BIT_24);
   while(RCC_CR & BIT_25);
 
   // Enable the high speed interal oscillator
-  RCC_CR |= BIT_0;
+  RCC_CR |= BIT_8;
   while(RCC_CR & BIT_2);
 
-  // Set pll source, multiplier and divisior for 32 MHz
-  RCC_CFGR &= ~BIT_16;
-  RCC_CFGR &= ~(0xF << 18);
-  RCC_CFGR |= (0x1 << 18);
-  RCC_CFGR &= ~(0x3 << 22);
-  RCC_CFGR |= (0x1 << 22);
+  // Set pll source, multiplier and divisior for 64 MHz
+  RCC_PLL_CFGR |=   0x00000002;  // Set PLL source to HSI16
+  RCC_PLL_CFGR &= ~(0x00000007 << 4);  // Set PLL input scaler M to 1
+  RCC_PLL_CFGR &= ~(0x0000007F << 8);  // Set PLL mult factor to 8
+  RCC_PLL_CFGR |=   0x00001000 << 8;  // Set PLL mult factor to 8
+  RCC_PLL_CFGR |=   BIT_28;  // Enable PLL R output
+  RCC_PLL_CFGR &= ~(0x00000007 << 29);  // Set R output scalar to 2
+  RCC_PLL_CFGR |=   0x00000001 << 29;  // Set R output scalar to 2
 
   // Set flash wait states
-  FLASH_ACR |= 0x1;
+  FLASH_ACR &= ~(0x7);
+  FLASH_ACR |= 0x2;  // 2 wait states for 64 MHz
 
   // Enable PLL
   RCC_CR |= BIT_24;
   while(RCC_CR & BIT_25);
 
   // Switch system clock to PLL
-  RCC_CFGR |= (0x3 << 0);
+  RCC_CFGR &= ~(0x7);
+  RCC_CFGR |= 0x2;
 
   // Init systick
   systick_init();
@@ -67,63 +69,12 @@ int main() {
   rtt_print("----\r\n");
   rtt_print("Booting...\r\n");
 
-  // Setup the I2C peripheral
-  ptn5110_i2c.init();
-
-  // Enable IO Ports
-  RCC_IOPENR |= 0x0000009F;
-
-  // Setup GPIO B 6/7 for I2C 1
-  GPIO_B_AFRL    &= ~(0x000000FF << 24);
-  GPIO_B_AFRL     |= (0x00000011 << 24);
-
-  GPIO_B_MODER   &= ~(0x0000000F << 12);
-  GPIO_B_MODER    |= (0x0000000A << 12);
-
-  GPIO_B_OSPEEDR &= ~(0x0000000F << 12);
-  GPIO_B_OSPEEDR  |= (0x00000000 << 12);
-
-  GPIO_B_PUPDR   &= ~(0x0000000F << 12);
-
-  GPIO_B_OTYPER   |= (0x00000003 << 6);
-
-  // Init status light
-  status_light::init();
-  status_light::set_color(1, 0, 0);
-
-  // Init the output enable line
-  output_en::init();
-
-  // Setup alert GPIO interrupt
-  RCC_APB2ENR |= BIT_0;
-  GPIO_A_MODER &= ~(0x0000C000); // PA7 Input mode
-  EXTI_IMR |= BIT_7;  // Unmask EXTI line 7
-  EXTI_FTSR |= BIT_7;  // Falling edge detection
-  SYSCFG_EXTICR2 &= ~(0x0000F000);  // Interrupt 7 reads from PA7
-  NVIC_ISER |= BIT_7;
-
-  // Init the PD Controllers
-  controller_a.init();
-  controller_b.init();
+  status_light::set_color(0, 0, 1);
 
   // Enable interruptS
   asm("CPSIE i");
 
-  // We likely have an alert that was missed on power up so handle it now
-  controller_a.handle_alert();
-  controller_b.handle_alert();
-
-  while(true) {
-    if(read_pending)  {
-      while(!(GPIO_A_IDR & BIT_7)) {
-        controller_a.handle_alert();
-        controller_b.handle_alert();
-      }
-      read_pending = false;
-    }
-    controller_a.tick();
-    controller_b.tick();
-  }
+  while(true) {}
 
   return 0;
 }
