@@ -8,6 +8,7 @@
 #include "registers/core.h"
 
 #include "i2c.h"
+#include "stm_pd.h"
 #include "usb_pd_controller.h"
 #include "status_light.h"
 #include "output_en.h"
@@ -15,6 +16,16 @@
 #include "time.h"
 #include "power_mux.h"
 
+PowerMux power_mux;
+STMPD pd_one(power_mux, PDPort::one);
+STMPD pd_two(power_mux, PDPort::two);
+
+
+void PD1_PD2_USB_ISR(void) {
+  pd_one.handle_interrupt();
+  pd_two.handle_interrupt();
+  NVIC_ICPR |= BIT_8;
+}
 
 int main() {
   // Init status light
@@ -70,10 +81,18 @@ int main() {
 
   status_light::set_color(0, 0, 1);
 
+  // Init the PD interfaces
+  pd_one.init();
+  pd_two.init();
+  NVIC_ISER |= BIT_8;
+
   // Enable interruptS
   asm("CPSIE i");
 
-  while(true) {}
+  while(true) {
+    pd_one.tick();
+    pd_two.tick();
+  }
 
   return 0;
 }

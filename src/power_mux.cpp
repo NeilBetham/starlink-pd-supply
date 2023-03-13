@@ -8,13 +8,13 @@
 #define MAX_SUPPLY_CAPABILITIES 8
 
 // Control Events
-void PowerMux::go_to_min_received(USBPDController& controller) {
+void PowerMux::go_to_min_received(IController& controller) {
   set_controller(controller);
   status_light::set_color(1, 1, 0);
   reset();
 }
 
-void PowerMux::accept_received(USBPDController& controller) {
+void PowerMux::accept_received(IController& controller) {
   set_controller(controller);
   switch(get_controller(controller)) {
     case ControllerIndex::a:
@@ -28,7 +28,7 @@ void PowerMux::accept_received(USBPDController& controller) {
   }
 }
 
-void PowerMux::reject_received(USBPDController& controller) {
+void PowerMux::reject_received(IController& controller) {
   set_controller(controller);
   switch(get_controller(controller)) {
      case ControllerIndex::a:
@@ -44,16 +44,16 @@ void PowerMux::reject_received(USBPDController& controller) {
   }
 }
 
-void PowerMux::ps_ready_received(USBPDController& controller) {
+void PowerMux::ps_ready_received(IController& controller) {
   set_controller(controller);
   switch(get_controller(controller)) {
      case ControllerIndex::a:
       _port_a_ps_rdy = true;
-      _control_a->set_vbus_sink(true);
+//      _control_a->set_vbus_sink(true);
       break;
     case ControllerIndex::b:
       _port_b_ps_rdy = true;
-      _control_a->set_vbus_sink(true);
+//      _control_a->set_vbus_sink(true);
       break;
     default:
       break;
@@ -63,13 +63,13 @@ void PowerMux::ps_ready_received(USBPDController& controller) {
   check_if_output_is_ready();
 }
 
-void PowerMux::reset_received(USBPDController& controller) {
+void PowerMux::reset_received(IController& controller) {
   set_controller(controller);
   status_light::set_color(1, 0, 1);
   reset();
 }
 
-void PowerMux::controller_disconnected(USBPDController& controller) {
+void PowerMux::controller_disconnected(IController& controller) {
   switch(get_controller(controller)) {
     case ControllerIndex::a:
       _port_a_accepted = false;
@@ -91,7 +91,7 @@ void PowerMux::controller_disconnected(USBPDController& controller) {
 
 
 // Data events
-void PowerMux::capabilities_received(USBPDController& controller, const SourceCapabilities& caps) {
+void PowerMux::capabilities_received(IController& controller, const SourceCapabilities& caps) {
   set_controller(controller);
 
   // For some reason some sources will reset after accepting...
@@ -110,7 +110,7 @@ void PowerMux::capabilities_received(USBPDController& controller, const SourceCa
   check_available_power();
 }
 
-void PowerMux::set_controller(USBPDController& controller) {
+void PowerMux::set_controller(IController& controller) {
   if(_control_a && _control_b) {
     return;
   }
@@ -133,7 +133,7 @@ void PowerMux::set_controller(USBPDController& controller) {
   }
 }
 
-ControllerIndex PowerMux::get_controller(USBPDController& controller) {
+ControllerIndex PowerMux::get_controller(IController& controller) {
   if(_control_a == &controller) {
     return ControllerIndex::a;
   }
@@ -145,7 +145,7 @@ ControllerIndex PowerMux::get_controller(USBPDController& controller) {
   return ControllerIndex::unknown;
 }
 
-SourceCapability& PowerMux::get_controller_cap(USBPDController& controller) {
+SourceCapability& PowerMux::get_controller_cap(IController& controller) {
   switch(get_controller(controller)) {
     case ControllerIndex::a:
       return _port_a_selected_cap;
@@ -270,21 +270,21 @@ void PowerMux::check_if_output_is_ready() {
   // Check that we have enough power and the supplies have said we can draw power
   if(_supply_count == 1) {
     if(_port_a_accepted && _port_a_ps_rdy && total_available_power() >= REQUIRED_OUTPUT_POWER_MW) {
-      _control_a->set_vbus_sink(true);
+//      _control_a->set_vbus_sink(true);
       output_en::set_state(true);
       status_light::set_color(0, 1, 0);
       return;
     }
     if(_port_b_accepted && _port_b_ps_rdy && total_available_power() >= REQUIRED_OUTPUT_POWER_MW) {
-      _control_b->set_vbus_sink(true);
+//      _control_b->set_vbus_sink(true);
       output_en::set_state(true);
       status_light::set_color(0, 1, 0);
       return;
     }
   } else if(_supply_count == 2) {
     if(_port_a_accepted && _port_b_accepted && _port_a_ps_rdy && _port_b_ps_rdy && total_available_power() > REQUIRED_OUTPUT_POWER_MW) {
-      _control_a->set_vbus_sink(true);
-      _control_b->set_vbus_sink(true);
+//      _control_a->set_vbus_sink(true);
+//      _control_b->set_vbus_sink(true);
       output_en::set_state(true);
       status_light::set_color(0, 1, 0);
       return;

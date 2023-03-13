@@ -173,6 +173,19 @@ private:
   uint32_t _pdo_index = 0;
 };
 
+// Controller interface description
+class IController {
+public:
+  virtual ~IController() {};
+
+  virtual const SourceCapabilities& caps() = 0;
+
+  virtual void send_control_msg(ControlMessageType message_type) = 0;
+  virtual void send_hard_reset() = 0;
+
+  virtual void request_capability(const SourceCapability& capability) = 0;
+  virtual void request_capability(const SourceCapability& capability, uint32_t power) = 0;
+};
 
 // Delegate ABC to model events received from a USB PD source
 class ControllerDelegate {
@@ -180,14 +193,14 @@ public:
   virtual ~ControllerDelegate() {};
 
   // Control Events
-  virtual void go_to_min_received(USBPDController& controller) = 0;
-  virtual void accept_received(USBPDController& controller) = 0;
-  virtual void reject_received(USBPDController& controller) = 0;
-  virtual void ps_ready_received(USBPDController& controller) = 0;
-  virtual void reset_received(USBPDController& controller) = 0;
-  virtual void controller_disconnected(USBPDController& controller) = 0;
+  virtual void go_to_min_received(IController& controller) = 0;
+  virtual void accept_received(IController& controller) = 0;
+  virtual void reject_received(IController& controller) = 0;
+  virtual void ps_ready_received(IController& controller) = 0;
+  virtual void reset_received(IController& controller) = 0;
+  virtual void controller_disconnected(IController& controller) = 0;
 
   // Data events
-  virtual void capabilities_received(USBPDController& controller, const SourceCapabilities& caps) = 0;
+  virtual void capabilities_received(IController& controller, const SourceCapabilities& caps) = 0;
 
 };

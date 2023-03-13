@@ -157,7 +157,7 @@ void USBPDController::send_control_msg(ControlMessageType message_type) {
   _phy.tx_usb_pd_msg(sizeof(MessageHeader), (uint8_t*)&message);
 }
 
-void USBPDController::hard_reset() {
+void USBPDController::send_hard_reset() {
   _phy.hard_reset();
 }
 

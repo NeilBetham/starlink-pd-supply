@@ -20,7 +20,7 @@ enum class PDState {
 };
 
 
-class USBPDController : public AlertDelegate {
+class USBPDController : public AlertDelegate, public IController {
 public:
   USBPDController(PTN5110& phy, ControllerDelegate& delegate) : _phy(phy), _delegate(delegate) {
     _phy.set_delegate(this);
@@ -36,7 +36,7 @@ public:
   void handle_alert();
 
   void send_control_msg(ControlMessageType message_type);
-  void hard_reset();
+  void send_hard_reset();
   void set_vbus_sink(bool enabled);
 
   const SourceCapabilities& caps() { return _source_caps; };

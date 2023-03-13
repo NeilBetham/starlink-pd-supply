@@ -17,9 +17,9 @@ void init() {
 
 void set_state(bool enabled) {
   if(enabled) {
-    GPIO_A_ODR |= BIT_4;
+//    GPIO_A_ODR |= BIT_4;
   } else {
-    GPIO_A_ODR &= ~(BIT_4);
+//    GPIO_A_ODR &= ~(BIT_4);
   }
 }
 

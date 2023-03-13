@@ -23,20 +23,20 @@ public:
 
   // ControllerDelegate Interface
   // Control Events
-  void go_to_min_received(USBPDController& controller);
-  void accept_received(USBPDController& controller);
-  void reject_received(USBPDController& controller);
-  void ps_ready_received(USBPDController& controller);
-  void reset_received(USBPDController& controller);
-  void controller_disconnected(USBPDController& controller);
+  void go_to_min_received(IController& controller);
+  void accept_received(IController& controller);
+  void reject_received(IController& controller);
+  void ps_ready_received(IController& controller);
+  void reset_received(IController& controller);
+  void controller_disconnected(IController& controller);
 
   // Data events
-  void capabilities_received(USBPDController& controller, const SourceCapabilities& caps);
+  void capabilities_received(IController& controller, const SourceCapabilities& caps);
 
 private:
-  void set_controller(USBPDController& controller);
-  ControllerIndex get_controller(USBPDController& controller);
-  SourceCapability& get_controller_cap(USBPDController& controller);
+  void set_controller(IController& controller);
+  ControllerIndex get_controller(IController& controller);
+  SourceCapability& get_controller_cap(IController& controller);
 
   // Check if we have enough power now to enable the output
   void check_available_power();
@@ -51,8 +51,8 @@ private:
   void reset();
 
   uint8_t _supply_count = 0;
-	USBPDController* _control_a = 0;
-	USBPDController* _control_b = 0;
+	IController* _control_a = 0;
+	IController* _control_b = 0;
 
   SourceCapability _port_a_selected_cap;
   SourceCapability _port_b_selected_cap;
