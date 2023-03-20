@@ -94,7 +94,8 @@ void PowerMux::controller_disconnected(IController& controller) {
 void PowerMux::capabilities_received(IController& controller, const SourceCapabilities& caps) {
   set_controller(controller);
 
-  // For some reason some sources will reset after accepting...
+  // Some sources with multiple ports will renegotiate after another port is connected so check to
+  // make sure we still have enough poweR
   if((_port_a_accepted || _port_a_ps_rdy) && get_controller(controller) == ControllerIndex::a) {
     rtt_print("Src reset\r\n");
     controller_disconnected(controller);
@@ -193,10 +194,10 @@ void PowerMux::check_available_power() {
     }
 
     // Check if we selected a capability, if not request the min power level
-    if(_control_a && _port_a_selected_cap.max_power() < 1) {
+    if(_control_a != NULL && _port_a_selected_cap.max_power() < 1) {
       _port_a_selected_cap = _control_a->caps().caps()[0];
       _control_a->request_capability(_port_a_selected_cap);
-      rtt_print("1 Sup, not enough power\r\n");
+      rtt_print("A: 1 Sup, not enough power\r\n");
     }
 
     // Check Port B caps
@@ -208,12 +209,11 @@ void PowerMux::check_available_power() {
         return;
       }
     }
-
     // Check if we selected a capability, if not request the min power level
-    if(_control_b && _port_b_selected_cap.max_power() < 1) {
+    if(_control_b != NULL && _port_b_selected_cap.max_power() < 1) {
       _port_b_selected_cap = _control_b->caps().caps()[0];
       _control_b->request_capability(_port_b_selected_cap);
-      rtt_print("1 Sup, not enough power\r\n");
+      rtt_print("B: 1 Sup, not enough power\r\n");
     }
   } else if(_supply_count == 2) {
     // We have two supplies so try to load balance between the two
@@ -303,4 +303,6 @@ void PowerMux::reset() {
   _port_a_ps_rdy = false;
   _port_b_ps_rdy = false;
   _supply_count = 0;
+  _control_a = NULL;
+  _control_b = NULL;
 }

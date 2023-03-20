@@ -43,16 +43,21 @@ void STMPD::init() {
 
   // Setup the config for the port and enable it
   REGISTER(_base_addr + PD_CFG1_OFFSET) &= ~((0x1F << 6) | (0x1F << 11) | (0x7 << 17) | (0x1FF << 20));
-  REGISTER(_base_addr + PD_CFG1_OFFSET) |=  ((0x0E << 6) | (0x09 << 11) | (0x0 << 17) | ((BIT_0 | BIT_3) << 20) | BIT_31);
+  REGISTER(_base_addr + PD_CFG1_OFFSET) |=  (0x0D | (0x10 << 6) | (0x08 << 11) | (0x1 << 17) | ((BIT_0 | BIT_3) << 20));
+  REGISTER(_base_addr + PD_CFG1_OFFSET) |=  BIT_31;
+
 
   // Enable the PD detectors set to sink mode
   REGISTER(_base_addr + PD_CR_OFFSET) |=  (BIT_9 | (0x3 << 10));
 
   // Enable interrupts for Type C events
-  REGISTER(_base_addr + PD_IMR_OFFSET) |= (BIT_15 | BIT_14 | BIT_10 | BIT_9);
+  enable_ints();
 
-  // Stobe SYSCFG to get control of CC lines
+  // Stobe SYSCFG to update resistors on CC lines
   SYSCFG_CFGR1 |= BIT_9 | BIT_10;
+
+  // Sleep for a bit to let the PHYs detect the CC line state
+  msleep(10);
 
   // Do an initial pass checking the type c state
   handle_type_c_event();
@@ -68,12 +73,21 @@ void STMPD::init() {
 
 void STMPD::tick() {
 	if(_message_buff.can_pop()) {
+    disable_ints();
     auto message = _message_buff.pop();
     handle_rx_buffer(message.buffer, message.size);
+    enable_ints();
 	}
   if(_caps_rx_timer != 0 && (system_time() - _caps_rx_timer) > 100) {
+    rtt_print("Send Caps Req\r\n");
     send_control_msg(ControlMessageType::get_source_cap);
     _caps_rx_timer = 0;
+    _hard_reset_timer = system_time();
+  }
+  if(_hard_reset_timer > 0 && (system_time() - _hard_reset_timer) > 200) {
+    rtt_print("Send HRST\r\n");
+    send_hard_reset();
+    _hard_reset_timer = 0;
   }
 }
 
@@ -105,13 +119,17 @@ void STMPD::handle_interrupt() {
 }
 
 void STMPD::send_control_msg(ControlMessageType message_type) {
+  send_control_msg(message_type, _message_id_counter++);
+}
+
+void STMPD::send_control_msg(ControlMessageType message_type, uint8_t index) {
   MessageHeader message;
   setmem(&message, 0, sizeof(MessageHeader));
 
   message.message_type = (uint8_t)message_type;
   message.num_data_obj = 0;
   message.spec_rev = 1;
-  message.message_id = _message_id_counter++;
+  message.message_id = index;
 
   send_buffer((uint8_t*)&message, sizeof(message));
 }
@@ -133,7 +151,7 @@ void STMPD::request_capability(const SourceCapability& capability, uint32_t powe
 
   uint32_t pdo = request.generate_pdo();
 
-  request_header.num_data_obj = 0;
+  request_header.num_data_obj = 1;
   request_header.message_type = (uint8_t)DataMessageType::request;
   request_header.spec_rev = (uint8_t)SpecificationRev::two_v_zero;
   request_header.message_id = _message_id_counter++;
@@ -143,6 +161,7 @@ void STMPD::request_capability(const SourceCapability& capability, uint32_t powe
   cpymem(buffer + 2, &pdo, sizeof(uint32_t));
 
   send_buffer(buffer, 6);
+  rtt_print("Cap Req TX\r\n");
 }
 
 void STMPD::send_buffer(const uint8_t* buffer, uint32_t size) {
@@ -157,7 +176,11 @@ void STMPD::send_buffer(const uint8_t* buffer, uint32_t size) {
 
   // Start writing data
   for(uint32_t index = 0; index < size; index++) {
-    while(!(REGISTER(_base_addr + PD_SR_OFFSET) & BIT_0));
+    while(!(REGISTER(_base_addr + PD_SR_OFFSET) & BIT_0)) {
+      if(REGISTER(_base_addr + PD_SR_OFFSET) & (BIT_1 | BIT_3)) {
+        rtt_print("MSG TX Failed\r\n");
+      }
+    };
     REGISTER(_base_addr + PD_TXDR_OFFSET) = buffer[index];
   }
 
@@ -175,14 +198,13 @@ void STMPD::recv_buffer(uint8_t* buffer, uint32_t size, uint32_t* received) {
     while(!(REGISTER(_base_addr + PD_SR_OFFSET) & BIT_8));
 
     // Check if we are going to overflow the output buffer
-    if(*received + 1 == size) {
+    if(*received + 1 >= size) {
       return;
     }
 
     // Read the byte
     buffer[*received] = REGISTER(_base_addr + PD_RXDR_OFFSET) & 0xFF;
-    *received++;
-
+    (*received)++;
   }
 
   // Check payload size
@@ -197,11 +219,22 @@ void STMPD::recv_buffer(uint8_t* buffer, uint32_t size, uint32_t* received) {
 
   // Clear the rx end flag
   REGISTER(_base_addr + PD_ICR_OFFSET) |= BIT_12;
+
+  // Send GoodCRC
+  MessageHeader* msg_header = (MessageHeader*)buffer;
+  uint32_t data_objs = msg_header->num_data_obj;
+  ControlMessageType c_msg_type = (ControlMessageType)msg_header->message_type;
+  if(data_objs > 0 || c_msg_type != ControlMessageType::good_crc) {
+    send_control_msg(ControlMessageType::good_crc, msg_header->message_id);
+  }
+
+  rtt_print("RX Msg\r\n");
 }
 
 void STMPD::handle_hard_reset() {
   _message_id_counter = 0;
   _delegate.reset_received(*this);
+  rtt_print("HRST RX\r\n");
 }
 
 void STMPD::handle_type_c_event() {
@@ -276,8 +309,10 @@ void STMPD::handle_rx_buffer(const uint8_t* buffer, uint32_t size) {
     DataMessageType message_type = (DataMessageType)(msg_header->message_type);
     switch(message_type) {
       case DataMessageType::source_capabilities:
-        rtt_print("Caps RX\r\n");
+        _caps_rx_timer = 0;
+        _hard_reset_timer = 0;
         handle_src_caps_msg(buffer, size);
+        rtt_print("Caps RX\r\n");
         break;
       case DataMessageType::bist:
         break;
@@ -301,4 +336,10 @@ void STMPD::handle_src_caps_msg(const uint8_t* message, uint32_t len) {
   _delegate.capabilities_received(*this, _source_caps);
 }
 
+void STMPD::enable_ints() {
+  REGISTER(_base_addr + PD_IMR_OFFSET) |= (BIT_15 | BIT_14 | BIT_10 | BIT_9);
+}
 
+void STMPD::disable_ints() {
+  REGISTER(_base_addr + PD_IMR_OFFSET) &= ~(BIT_15 | BIT_14 | BIT_10 | BIT_9);
+}

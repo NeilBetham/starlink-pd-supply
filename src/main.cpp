@@ -45,8 +45,8 @@ int main() {
   while(RCC_CR & BIT_25);
 
   // Enable the high speed interal oscillator
-  RCC_CR |= BIT_8;
-  while(RCC_CR & BIT_2);
+  RCC_CR |= BIT_8 | BIT_9;
+  while(!(RCC_CR & BIT_10));
 
   // Set pll source, multiplier and divisior for 64 MHz
   RCC_PLL_CFGR |=   0x00000002;         // Set PLL source to HSI16
@@ -71,6 +71,15 @@ int main() {
 
   // Init systick
   systick_init();
+
+  // Enable SYSCFG clocks
+  RCC_APBENR2 |= BIT_0;
+
+  // Enable CRC clocks
+  RCC_AHBENR |= BIT_12;
+
+  // Enable A B C D GPIOs
+  RCC_IOPENR |= 0xF;
 
   // Add a small delay for things to stabilize
   msleep(10);

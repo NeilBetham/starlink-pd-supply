@@ -9,7 +9,7 @@ extern int _stack_ptr;
 #define DEFAULT __attribute__((weak, alias("Default_Handler")))
 
 // Default Handler that loops indefinitely
-extern "C" void Default_Handler() { while(1); };
+extern "C" void Default_Handler() { asm("bkpt 1"); while(1); };
 
 // System Exception Handlers
 void Reset_Handler(void);
