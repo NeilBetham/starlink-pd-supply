@@ -27,17 +27,16 @@ void PD1_PD2_USB_ISR(void) {
   NVIC_ICPR |= BIT_8;
 }
 
+void HardFault_Handler(void) {
+  asm("bkpt 1");
+  while(1);
+}
+
 int main() {
   // Init status light
   // LED Hello World
   status_light::init();
   status_light::set_color(1, 0, 0);
-  for(uint32_t index = 0; index < 200000; index++);
-  status_light::set_color(0, 1, 0);
-  for(uint32_t index = 0; index < 200000; index++);
-  status_light::set_color(0, 0, 1);
-  for(uint32_t index = 0; index < 200000; index++);
-  status_light::set_color(1, 1, 1);
 
   // Setup core clock to be 64MHz
   // Turn off PLL and wait for it to stop

@@ -17,6 +17,7 @@ enum class PDPort : uint8_t {
 struct RXMessage {
   uint8_t buffer[32] = {0};
   uint32_t size = 0;
+  bool hard_reset = false;
 };
 
 class STMPD : public IController {

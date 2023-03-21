@@ -75,11 +75,13 @@ void PowerMux::controller_disconnected(IController& controller) {
       _port_a_accepted = false;
       _port_a_ps_rdy = false;
       _port_a_selected_cap = SourceCapability();
+      _control_a = NULL;
       break;
     case ControllerIndex::b:
       _port_b_accepted = false;
       _port_b_ps_rdy = false;
-      _port_a_selected_cap = SourceCapability();
+      _port_b_selected_cap = SourceCapability();
+      _control_b = NULL;
       break;
     default:
       break;
