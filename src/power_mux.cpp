@@ -11,7 +11,6 @@
 void PowerMux::go_to_min_received(IController& controller) {
   set_controller(controller);
   status_light::set_color(1, 1, 0);
-  reset();
 }
 
 void PowerMux::accept_received(IController& controller) {
@@ -65,7 +64,7 @@ void PowerMux::ps_ready_received(IController& controller) {
 
 void PowerMux::reset_received(IController& controller) {
   set_controller(controller);
-  status_light::set_color(1, 0, 1);
+  status_light::set_color(1, 0, 0);
   reset();
 }
 
@@ -211,6 +210,7 @@ void PowerMux::check_available_power() {
         return;
       }
     }
+
     // Check if we selected a capability, if not request the min power level
     if(_control_b != NULL && _port_b_selected_cap.max_power() < 1) {
       _port_b_selected_cap = _control_b->caps().caps()[0];
