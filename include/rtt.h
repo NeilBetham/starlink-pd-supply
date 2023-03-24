@@ -10,7 +10,7 @@
 
 #define MAX_UP_BUFFERS 1
 #define MAX_DOWN_BUFFERS 1
-#define CHANNEL_BUFFER_SIZE 256
+#define CHANNEL_BUFFER_SIZE 1024
 
 struct PACKED RTT_BUFFER_UP {
   const char* name;

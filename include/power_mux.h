@@ -4,9 +4,11 @@
 
 #pragma once
 
+#include "dishy_power.h"
 #include "pd_protocol.h"
+#include "power_switch.h"
 
-#define REQUIRED_OUTPUT_POWER_MW 93000000
+#define REQUIRED_OUTPUT_POWER_MW 93000
 
 
 enum class ControllerIndex : uint8_t {
@@ -18,7 +20,11 @@ enum class ControllerIndex : uint8_t {
 
 class PowerMux : public ControllerDelegate {
 public:
-  PowerMux() {};
+  PowerMux(IController& controller_a, IController& controller_b, PowerSwitch& power_switch_a, PowerSwitch& power_switch_b, DishyPower& dishy_power) :
+      _control_a(controller_a), _control_b(controller_b), _switch_a(power_switch_a), _switch_b(power_switch_b), _dishy_power(dishy_power) {
+    _control_a.set_delegate(this);
+    _control_b.set_delegate(this);
+  };
   ~PowerMux() {};
 
   // ControllerDelegate Interface
@@ -34,7 +40,6 @@ public:
   void capabilities_received(IController& controller, const SourceCapabilities& caps);
 
 private:
-  void set_controller(IController& controller);
   ControllerIndex get_controller(IController& controller);
   SourceCapability& get_controller_cap(IController& controller);
 
@@ -50,9 +55,14 @@ private:
   // Should be called when we need to renegotiate power
   void reset();
 
-  uint8_t _supply_count = 0;
-	IController* _control_a = 0;
-	IController* _control_b = 0;
+  // Called to check the number of supplies available
+  uint8_t active_supplies();
+
+	IController& _control_a;
+	IController& _control_b;
+  PowerSwitch& _switch_a;
+  PowerSwitch& _switch_b;
+  DishyPower& _dishy_power;
 
   SourceCapability _port_a_selected_cap;
   SourceCapability _port_b_selected_cap;

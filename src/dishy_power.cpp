@@ -3,6 +3,8 @@
 #include "registers/adc.h"
 #include "registers/gpio.h"
 #include "registers/rcc.h"
+#include "rtt.h"
+#include "time.h"
 
 /**
  * GPIO Numbers
@@ -15,7 +17,9 @@
  */
 
 #define HIGH_SIDE_COUNTS_2V7 200
-#define CURRENT_SESNE_COUNT_5W 193
+#define HIGH_SIDE_COUNTS_48V 3546
+#define HIGH_SIDE_COUNTS_48V_BUFFER 300
+#define CURRENT_SENSE_COUNT_5W 193
 #define SENSE_VOLTAGE_MEDIAN_1V3 1613
 #define SENSE_VOLTAGE_BUFFER_0V2 248
 
@@ -25,7 +29,7 @@ void DishyPower::init() {
   RCC_IOPENR    |= BIT_0;
   GPIO_A_ODR    &= ~(BIT_0 | BIT_4 | BIT_5);
   GPIO_A_MODER  &= ~((0x3 << BIT0_POS) | (0x3 << BIT2_POS) | (0x3 << BIT4_POS) | (0x3 << BIT6_POS) | (0x3 << BIT8_POS) | (0x3 << BIT10_POS));
-  GPIO_A_MODER  |=   (0x1 << BIT0_POS) | (0x3 << BIT2_POS) | (0x3 << BIT4_POS) | (0x3 << BIT6_POS) | (0x1 << BIT8_POS) | (0x3 << BIT10_POS);
+  GPIO_A_MODER  |=   (0x1 << BIT0_POS) | (0x3 << BIT2_POS) | (0x3 << BIT4_POS) | (0x3 << BIT6_POS) | (0x1 << BIT8_POS) | (0x1 << BIT10_POS);
   GPIO_A_OTYPER &= ~(BIT_0 | BIT_4 | BIT_5);
 
   // Setup ADC
@@ -46,9 +50,11 @@ void DishyPower::init() {
   while(!(ADC_ISR & BIT_0));
 
   // Setup the sampling config
-  ADC_CFGR1 &= ~(BIT_21);  // Single bit channel sampling sequencing
-  while(!(ADC_ISR & BIT_13));  // Wait for the CCRDY flag to set
-  ADC_ISR |= BIT_13;
+  if(ADC_CFGR1 & BIT_21) {
+    ADC_CFGR1 &= ~(BIT_21);  // Single bit channel sampling sequencing
+    while(!(ADC_ISR & BIT_13));  // Wait for the CCRDY flag to set
+    ADC_ISR |= BIT_13;
+  }
 
   // Channels 1, 2 and 3 are selected
   ADC_CHSELR |= BIT_1 | BIT_2 | BIT_3;
@@ -56,9 +62,11 @@ void DishyPower::init() {
   ADC_ISR |= BIT_13;
 
   // Set scan direction to low to high
-  ADC_CFGR1 &= ~(BIT_2);
-  while(!(ADC_ISR & BIT_13));  // Wait for the CCRDY flag to set
-  ADC_ISR |= BIT_13;
+  if(ADC_CFGR1 & BIT_2) {
+    ADC_CFGR1 &= ~(BIT_2);
+    while(!(ADC_ISR & BIT_13));  // Wait for the CCRDY flag to set
+    ADC_ISR |= BIT_13;
+  }
 
   // Setup the sampling time
   ADC_SMPR &= ~(BIT_9 | BIT_10 | BIT_11);
@@ -77,6 +85,7 @@ void DishyPower::tick() {
     return;
   }
 
+/* Disabled due to board level issues
   // Get the current state of the sense lines
   run_adc_conversion();
 
@@ -87,6 +96,7 @@ void DishyPower::tick() {
   } else {
     monitor_sense_voltage();
   }
+*/
 
   // If dishy is connected then we can source power else go back into sense mode
   if(_dishy_connected) {
@@ -97,28 +107,38 @@ void DishyPower::tick() {
 }
 
 void DishyPower::enable_power() {
-  _power_output_enabled = false;
+  rtt_print("Dishy power enable\r\n");
+  _power_output_enabled = true;
 }
 
 void DishyPower::disable_power() {
-  _power_output_enabled = true;
+  rtt_print("Dishy power disable\r\n");
+  _power_output_enabled = false;
 }
 
 
 void DishyPower::set_load_mode(LoadMode mode) {
+  if(_current_mode == mode) {
+    return;
+  }
   switch(mode) {
     case LoadMode::disabled:
+      rtt_print("DishyPower Mode: Disabled\r\n");
       GPIO_A_ODR &= ~(BIT_4 | BIT_5);  // Disable both the load switch and the sense switch break; case LoadMode::
       break;
     case LoadMode::sense_voltage:
+      rtt_print("DishyPower Mode: Sense\r\n");
       set_sense_mode();
       break;
     case LoadMode::load_power:
+      rtt_print("DishyPower Mode: Load\r\n");
       set_load_power_mode();
       break;
     default:
       break;
   }
+
+  _current_mode = mode;
 }
 
 void DishyPower::set_boost(bool enabled) {
@@ -133,22 +153,35 @@ void DishyPower::set_sense_mode() {
   // First disable load switch
   GPIO_A_ODR &= ~(BIT_4);
 
+  // Disable the boost convertor
+  set_boost(false);
+
   // Next we need to make sure that the high voltage has dropped
+/*
   while(_high_side_counts > HIGH_SIDE_COUNTS_2V7) {
     run_adc_conversion();
   }
-
+*/
   // Enable the sense side switch
   GPIO_A_ODR |= BIT_5;
 }
 
-void DishyPower::set_load_mode() {
+void DishyPower::set_load_power_mode() {
   // First disable the sense side switch
   GPIO_A_ODR &= ~(BIT_5);
 
   // Wait some time for the switch to disable
   msleep(1);
 
+  // Enable the boost convertor
+  set_boost(true);
+
+  // Wait for the output to reach regulation
+/*
+  while(_high_side_counts < HIGH_SIDE_COUNTS_48V - HIGH_SIDE_COUNTS_48V_BUFFER) {
+    run_adc_conversion();
+  }
+*/
   // Enable the load switch
   GPIO_A_ODR |= BIT_4;
 }
@@ -158,12 +191,15 @@ void DishyPower::run_adc_conversion() {
   ADC_CR |= BIT_2;
   while(!(ADC_ISR & BIT_2));
   _current_counts = ADC_DR;
+  ADC_ISR |= BIT_2;
 
   while(!(ADC_ISR & BIT_2));
   _high_side_counts = ADC_DR;
+  ADC_ISR |= BIT_2;
 
   while(!(ADC_ISR & BIT_2));
   _low_side_counts = ADC_DR;
+  ADC_ISR |= BIT_2;
 }
 
 void DishyPower::monitor_current() {
@@ -198,7 +234,7 @@ void DishyPower::monitor_sense_voltage() {
 
   // Debounce check on being in the threshold range
   if(_low_side_thresh_counts > 10) {
-    _dishy_connected = true
+    _dishy_connected = true;
     _low_side_thresh_counts = 0;
   }
 }

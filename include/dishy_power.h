@@ -12,7 +12,7 @@ enum class LoadMode {
   disabled,
   sense_voltage,
   load_power
-}
+};
 
 
 class DishyPower {
@@ -25,7 +25,7 @@ public:
 
 private:
   bool _power_output_enabled = false;
-  bool _dishy_connected = false;
+  bool _dishy_connected = true;
 
   uint32_t _low_side_counts = 0;
   uint32_t _low_side_thresh_counts = 0;
@@ -35,6 +35,8 @@ private:
   uint32_t _current_counts = 0;
   uint32_t _current_no_load_counts = 0;
   uint32_t _current_below_thresh_counts = 0;
+
+  LoadMode _current_mode = LoadMode::unknown;
 
   void set_load_mode(LoadMode mode);
   void set_boost(bool enabled);

@@ -11,12 +11,16 @@
 
 class Digipot {
 public:
-  Digipot(I2C& i2c_port, uint8_t addr);
+  Digipot(I2C& i2c_port, uint8_t addr) : _i2c_port(i2c_port), _addr(addr) {};
 
-  bool set_tap(uint32_t tap);
+  void init();
+
+  bool set_resistance(uint32_t resistance);
 
 private:
   I2C& _i2c_port;
   uint8_t _addr;
-}
+
+  bool set_tap(uint8_t tap);
+};
 

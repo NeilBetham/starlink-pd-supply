@@ -1,7 +1,7 @@
 MEMORY {
   /* These are specific to the STM32L011F4 Being used with this project */
-  FLASH (rx) : ORIGIN = 0x08000000, LENGTH = 16K
-  RAM (rwx) : ORIGIN = 0x20000000, LENGTH = 2K
+  FLASH (rx) : ORIGIN = 0x08000000, LENGTH = 512K
+  RAM (rwx) : ORIGIN = 0x20000000, LENGTH = 144K
 }
 
 SECTIONS {

@@ -21,9 +21,7 @@
 #define ORDSET_SOP_PRIMEPRIME (K_CODE_SYNC1 | (K_CODE_SYNC3 << 5) | (K_CODE_SYNC1 << 10) | (K_CODE_SYNC3 << 15))
 #define ORDSET_HARD_RESET     (K_CODE_RST1  | (K_CODE_RST1  << 5) | (K_CODE_RST1  << 10) | (K_CODE_RST2  << 15))
 
-STMPD::STMPD(ControllerDelegate& delegate, PDPort port) : _delegate(delegate), _port(port) {
-
-}
+STMPD::STMPD(PDPort port) : _port(port) {}
 
 void STMPD::init() {
   switch(_port) {
@@ -194,7 +192,9 @@ void STMPD::send_buffer(const uint8_t* buffer, uint32_t size) {
   for(uint32_t index = 0; index < size; index++) {
     while(!(REGISTER(_base_addr + PD_SR_OFFSET) & BIT_0)) {
       if(REGISTER(_base_addr + PD_SR_OFFSET) & (BIT_1 | BIT_3)) {
+        REGISTER(_base_addr | PD_ICR_OFFSET) |= BIT_0 | BIT_3;
         rtt_print("MSG TX Failed\n\r");
+        return;
       }
     };
     REGISTER(_base_addr + PD_TXDR_OFFSET) = buffer[index];
@@ -202,6 +202,7 @@ void STMPD::send_buffer(const uint8_t* buffer, uint32_t size) {
 
   // Check if the message was sent
   while(!(REGISTER(_base_addr + PD_SR_OFFSET) & BIT_2));
+  REGISTER(_base_addr | PD_ICR_OFFSET) |= BIT_2;
   rtt_print("MSG Sent\n\r");
 }
 
@@ -239,7 +240,10 @@ void STMPD::recv_buffer(uint8_t* buffer, uint32_t size, uint32_t* received) {
 
 void STMPD::handle_hard_reset() {
   _message_id_counter = 0;
-  _delegate.reset_received(*this);
+  if(_delegate) {
+    _delegate->reset_received(*this);
+  }
+  _source_caps = SourceCapabilities();
   rtt_print("HRST RX\n\r");
 }
 
@@ -268,6 +272,9 @@ void STMPD::handle_type_c_event() {
   }
 
   REGISTER(_base_addr + PD_ICR_OFFSET) |= BIT_14 | BIT_15;
+
+  // If neither CC is active clear out any capabilies
+  _source_caps = SourceCapabilities();
 }
 
 void STMPD::handle_rx_buffer(const uint8_t* buffer, uint32_t size) {
@@ -277,22 +284,30 @@ void STMPD::handle_rx_buffer(const uint8_t* buffer, uint32_t size) {
     ControlMessageType message_type = (ControlMessageType)(msg_header->message_type);
     switch(message_type) {
       case ControlMessageType::good_crc:
+        _caps_rx_timer = 0;
+        _hard_reset_timer = 0;
 				rtt_print("Good CRC\n\r");
         break;
       case ControlMessageType::goto_min:
         send_control_msg(ControlMessageType::good_crc, msg_header->message_id);
 				rtt_print("Goto min\n\r");
-        _delegate.go_to_min_received(*this);
+        if(_delegate) {
+          _delegate->go_to_min_received(*this);
+        }
         break;
       case ControlMessageType::accept:
         send_control_msg(ControlMessageType::good_crc, msg_header->message_id);
 				rtt_print("Accept\n\r");
-        _delegate.accept_received(*this);
+        if(_delegate) {
+          _delegate->accept_received(*this);
+        }
         break;
       case ControlMessageType::reject:
         send_control_msg(ControlMessageType::good_crc, msg_header->message_id);
 				rtt_print("Reject\n\r");
-        _delegate.reject_received(*this);
+        if(_delegate) {
+          _delegate->reject_received(*this);
+        }
         break;
       case ControlMessageType::ping:
         send_control_msg(ControlMessageType::good_crc, msg_header->message_id);
@@ -301,14 +316,19 @@ void STMPD::handle_rx_buffer(const uint8_t* buffer, uint32_t size) {
       case ControlMessageType::ps_rdy:
         send_control_msg(ControlMessageType::good_crc, msg_header->message_id);
 				rtt_print("Ps rdy\n\r");
-        _delegate.ps_ready_received(*this);
+        if(_delegate) {
+          _delegate->ps_ready_received(*this);
+        }
         break;
       case ControlMessageType::soft_reset:
         send_control_msg(ControlMessageType::good_crc, msg_header->message_id);
 				rtt_print("Soft reset\n\r");
         _message_id_counter = 0;
         send_control_msg(ControlMessageType::accept);
-        _delegate.reset_received(*this);
+        _source_caps = SourceCapabilities();
+        if(_delegate) {
+          _delegate->reset_received(*this);
+        }
         break;
       default:
         break;
@@ -346,7 +366,9 @@ void STMPD::handle_src_caps_msg(const uint8_t* message, uint32_t len) {
 
   _source_caps = SourceCapabilities(pdos, msg_hdr->num_data_obj);
 
-  _delegate.capabilities_received(*this, _source_caps);
+  if(_delegate) {
+    _delegate->capabilities_received(*this, _source_caps);
+  }
 }
 
 void STMPD::enable_ints() {

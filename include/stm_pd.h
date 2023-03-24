@@ -22,12 +22,16 @@ struct RXMessage {
 
 class STMPD : public IController {
 public:
-  STMPD(ControllerDelegate& delegate, PDPort port);
+  STMPD(PDPort port);
   ~STMPD() {};
 
   void init();
   void tick();
   void handle_interrupt();
+
+  void set_delegate(ControllerDelegate* delegate) {
+    _delegate = delegate;
+  }
 
   void send_control_msg(ControlMessageType message_type);
   void send_control_msg(ControlMessageType message_type, uint8_t index);
@@ -38,7 +42,7 @@ public:
   void request_capability(const SourceCapability& capability, uint32_t power);
 
 private:
-  ControllerDelegate& _delegate;
+  ControllerDelegate* _delegate = 0;
   SourceCapabilities _source_caps;
   PDPort _port;
   uint32_t _base_addr = 0;

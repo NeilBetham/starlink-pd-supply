@@ -136,12 +136,14 @@ public:
   PowerDataObjectType type() const { return _pdo_type; };
   uint32_t voltage() const { return _voltage; };
   uint32_t max_power() const { return _power; };
+  uint32_t current() const { return _current; }
   bool is_battery() const;
   uint8_t index() const { return _index; };
 
 private:
   PowerDataObjectType _pdo_type = PowerDataObjectType::reserved;
   uint32_t _voltage = 0;
+  uint32_t _current = 0;
   uint32_t _power = 0;
   uint8_t _index = 0;
 };
@@ -173,6 +175,8 @@ private:
   uint32_t _pdo_index = 0;
 };
 
+class ControllerDelegate;
+
 // Controller interface description
 class IController {
 public:
@@ -185,6 +189,8 @@ public:
 
   virtual void request_capability(const SourceCapability& capability) = 0;
   virtual void request_capability(const SourceCapability& capability, uint32_t power) = 0;
+
+  virtual void set_delegate(ControllerDelegate* delegate) = 0;
 };
 
 // Delegate ABC to model events received from a USB PD source

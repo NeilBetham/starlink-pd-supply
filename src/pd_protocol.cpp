@@ -12,7 +12,8 @@ SourceCapability::SourceCapability(const PowerDataObject& object, uint8_t index)
       FixedPowerDataObject* fixed_pdo = (FixedPowerDataObject*)(&object);
       _pdo_type = pdo_type;
       _voltage = fixed_pdo->voltage_50mv * 50;
-      _power = _voltage * fixed_pdo->max_current_10ma * 10;
+      _current = fixed_pdo->max_current_10ma * 10;
+      _power = (_voltage * fixed_pdo->max_current_10ma * 10) / 1000;
       break;
     }
     case PowerDataObjectType::battery: {
@@ -21,6 +22,7 @@ SourceCapability::SourceCapability(const PowerDataObject& object, uint8_t index)
       uint32_t median_voltage = ((batt_pdo->max_voltage_50mv - batt_pdo->min_voltage_50mv) >> 1) + batt_pdo->min_voltage_50mv;
       _voltage = median_voltage * 50;
       _power = batt_pdo->max_power_250mw * 250;
+      _current = (_power * 1000) / _voltage;
       break;
     }
     case PowerDataObjectType::variable: {
@@ -29,6 +31,7 @@ SourceCapability::SourceCapability(const PowerDataObject& object, uint8_t index)
       uint32_t median_voltage = ((var_pdo->max_voltage_50mv - var_pdo->min_voltage_50mv) >> 1) + var_pdo->min_voltage_50mv;
       _voltage = median_voltage * 50;
       _power = var_pdo->max_current_10ma * 10 * median_voltage;
+      _current = (_power * 1000) / _voltage;
       break;
     }
     default:

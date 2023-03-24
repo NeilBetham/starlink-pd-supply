@@ -15,10 +15,33 @@
 #include "rtt.h"
 #include "time.h"
 #include "power_mux.h"
+#include "digipot.h"
+#include "power_switch.h"
+#include "dishy_power.h"
 
-PowerMux power_mux;
-STMPD pd_one(power_mux, PDPort::one);
-STMPD pd_two(power_mux, PDPort::two);
+
+
+/**
+ * Pin Mappings
+ * UCPD1 -> Port A
+ *   - VBUS_EN - PB11
+ *   - Digipot - A0 -> L
+ * UCPD2 -> Port B
+ *   - VBUS_EN - PB12
+ *   - Digipot - A0 -> H
+ *
+ * Digipot Base Addr -> 0b010111A0
+ */
+
+I2C digipot_i2c(1);
+Digipot digipot_a(digipot_i2c, 0x2E);
+Digipot digipot_b(digipot_i2c, 0x2F);
+PowerSwitch power_switch_a(digipot_a, BIT11_POS);
+PowerSwitch power_switch_b(digipot_b, BIT12_POS);
+DishyPower dishy_power;
+STMPD pd_one(PDPort::one);
+STMPD pd_two(PDPort::two);
+PowerMux power_mux(pd_one, pd_two, power_switch_a, power_switch_b, dishy_power);
 
 
 void PD1_PD2_USB_ISR(void) {
@@ -80,6 +103,13 @@ int main() {
   // Enable A B C D GPIOs
   RCC_IOPENR |= 0xF;
 
+  // Setup PB8/9 for I2C 1
+  GPIO_B_MODER  &= ~((0x3 << BIT16_POS) | (0x3 << BIT18_POS));
+  GPIO_B_MODER  |=  ((0x2 << BIT16_POS) | (0x2 << BIT18_POS));
+  GPIO_B_AFRH   &= ~((0xF << BIT4_POS) | (0xF << BIT0_POS));
+  GPIO_B_AFRH   |=  ((0x6 << BIT4_POS) | (0x6 << BIT0_POS));
+  GPIO_B_OTYPER |= BIT_8 | BIT_9;
+
   // Add a small delay for things to stabilize
   msleep(10);
 
@@ -89,15 +119,24 @@ int main() {
 
   status_light::set_color(0, 0, 1);
 
-  // Init the PD interfaces
+  // Init all the things
+  digipot_i2c.init();
+  digipot_a.init();
+  digipot_b.init();
+  power_switch_a.init();
+  power_switch_b.init();
+  dishy_power.init();
   pd_one.init();
   pd_two.init();
+
+  // Enable UCPD Interrupt
   NVIC_ISER |= BIT_8;
 
   // Enable interruptS
   asm("CPSIE i");
 
   while(true) {
+    dishy_power.tick();
     pd_one.tick();
     pd_two.tick();
   }
