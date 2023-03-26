@@ -1,6 +1,6 @@
 #include "digipot.h"
 
-
+#include "rtt.h"
 
 #define MAX_RESISTANCE 100000
 #define MIN_RESISTANCE 325
@@ -23,7 +23,10 @@ bool Digipot::set_resistance(uint32_t resistance) {
   }
 
   // Figure out which tap we need to select
-  uint8_t tap = (resistance * WIPER_RES) / MAX_RESISTANCE;
+  uint8_t tap = 0;
+  if(resistance > MIN_RESISTANCE) {
+    tap = ((resistance - MIN_RESISTANCE) * WIPER_RES) / MAX_RESISTANCE;
+  }
 
   // Select the wiper tap
   return set_tap(tap);

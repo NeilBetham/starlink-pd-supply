@@ -107,12 +107,12 @@ void DishyPower::tick() {
 }
 
 void DishyPower::enable_power() {
-  rtt_print("Dishy power enable\r\n");
+  rtt_printf("Dishy power enable");
   _power_output_enabled = true;
 }
 
 void DishyPower::disable_power() {
-  rtt_print("Dishy power disable\r\n");
+  rtt_printf("Dishy power disable");
   _power_output_enabled = false;
 }
 
@@ -123,15 +123,15 @@ void DishyPower::set_load_mode(LoadMode mode) {
   }
   switch(mode) {
     case LoadMode::disabled:
-      rtt_print("DishyPower Mode: Disabled\r\n");
+      rtt_printf("DishyPower Mode: Disabled");
       GPIO_A_ODR &= ~(BIT_4 | BIT_5);  // Disable both the load switch and the sense switch break; case LoadMode::
       break;
     case LoadMode::sense_voltage:
-      rtt_print("DishyPower Mode: Sense\r\n");
+      rtt_printf("DishyPower Mode: Sense");
       set_sense_mode();
       break;
     case LoadMode::load_power:
-      rtt_print("DishyPower Mode: Load\r\n");
+      rtt_printf("DishyPower Mode: Load");
       set_load_power_mode();
       break;
     default:

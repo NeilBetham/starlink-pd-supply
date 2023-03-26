@@ -72,10 +72,10 @@ void STMPD::init() {
 
   switch(_port) {
     case PDPort::one:
-      rtt_print("Port 1 Init Done\n\r");
+      rtt_printf("Port 1 Init Done");
       break;
     case PDPort::two:
-      rtt_print("Port 2 Init Done\n\r");
+      rtt_printf("Port 2 Init Done");
   }
 }
 
@@ -89,13 +89,11 @@ void STMPD::tick() {
     }
 	}
   if(_caps_rx_timer != 0 && (system_time() - _caps_rx_timer) > 100) {
-    rtt_print("Src Caps Req\n\r");
     send_control_msg(ControlMessageType::get_source_cap);
     _caps_rx_timer = 0;
     _hard_reset_timer = system_time();
   }
   if(_hard_reset_timer != 0 && (system_time() - _hard_reset_timer) > 200) {
-    rtt_print("Send HRST\n\r");
     send_hard_reset();
     _hard_reset_timer = 0;
   }
@@ -175,7 +173,6 @@ void STMPD::request_capability(const SourceCapability& capability, uint32_t powe
   cpymem(buffer + 2, &pdo, sizeof(uint32_t));
 
   send_buffer(buffer, 6);
-  rtt_print("Cap Req TX\n\r");
 }
 
 void STMPD::send_buffer(const uint8_t* buffer, uint32_t size) {
@@ -193,7 +190,7 @@ void STMPD::send_buffer(const uint8_t* buffer, uint32_t size) {
     while(!(REGISTER(_base_addr + PD_SR_OFFSET) & BIT_0)) {
       if(REGISTER(_base_addr + PD_SR_OFFSET) & (BIT_1 | BIT_3)) {
         REGISTER(_base_addr | PD_ICR_OFFSET) |= BIT_0 | BIT_3;
-        rtt_print("MSG TX Failed\n\r");
+        rtt_printf("MSG TX Failed");
         return;
       }
     };
@@ -203,7 +200,6 @@ void STMPD::send_buffer(const uint8_t* buffer, uint32_t size) {
   // Check if the message was sent
   while(!(REGISTER(_base_addr + PD_SR_OFFSET) & BIT_2));
   REGISTER(_base_addr | PD_ICR_OFFSET) |= BIT_2;
-  rtt_print("MSG Sent\n\r");
 }
 
 void STMPD::recv_buffer(uint8_t* buffer, uint32_t size, uint32_t* received) {
@@ -244,7 +240,7 @@ void STMPD::handle_hard_reset() {
     _delegate->reset_received(*this);
   }
   _source_caps = SourceCapabilities();
-  rtt_print("HRST RX\n\r");
+  rtt_printf("HRST RX");
 }
 
 void STMPD::handle_type_c_event() {
@@ -286,43 +282,36 @@ void STMPD::handle_rx_buffer(const uint8_t* buffer, uint32_t size) {
       case ControlMessageType::good_crc:
         _caps_rx_timer = 0;
         _hard_reset_timer = 0;
-				rtt_print("Good CRC\n\r");
         break;
       case ControlMessageType::goto_min:
         send_control_msg(ControlMessageType::good_crc, msg_header->message_id);
-				rtt_print("Goto min\n\r");
         if(_delegate) {
           _delegate->go_to_min_received(*this);
         }
         break;
       case ControlMessageType::accept:
         send_control_msg(ControlMessageType::good_crc, msg_header->message_id);
-				rtt_print("Accept\n\r");
         if(_delegate) {
           _delegate->accept_received(*this);
         }
         break;
       case ControlMessageType::reject:
         send_control_msg(ControlMessageType::good_crc, msg_header->message_id);
-				rtt_print("Reject\n\r");
         if(_delegate) {
           _delegate->reject_received(*this);
         }
         break;
       case ControlMessageType::ping:
         send_control_msg(ControlMessageType::good_crc, msg_header->message_id);
-				rtt_print("Ping\n\r");
         break;
       case ControlMessageType::ps_rdy:
         send_control_msg(ControlMessageType::good_crc, msg_header->message_id);
-				rtt_print("Ps rdy\n\r");
         if(_delegate) {
           _delegate->ps_ready_received(*this);
         }
         break;
       case ControlMessageType::soft_reset:
         send_control_msg(ControlMessageType::good_crc, msg_header->message_id);
-				rtt_print("Soft reset\n\r");
         _message_id_counter = 0;
         send_control_msg(ControlMessageType::accept);
         _source_caps = SourceCapabilities();
@@ -342,7 +331,6 @@ void STMPD::handle_rx_buffer(const uint8_t* buffer, uint32_t size) {
         _caps_rx_timer = 0;
         _hard_reset_timer = 0;
         handle_src_caps_msg(buffer, size);
-        rtt_print("Caps RX\n\r");
         break;
       case DataMessageType::bist:
         send_control_msg(ControlMessageType::good_crc, msg_header->message_id);

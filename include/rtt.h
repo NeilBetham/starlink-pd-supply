@@ -72,3 +72,4 @@ private:
 // Simple singleton to get access to a single RTT comm manager
 RTT& rtt();
 int rtt_print(const char* message);
+int rtt_printf(const char* format, ...);

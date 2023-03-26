@@ -3,6 +3,9 @@
 #include "time.h"
 #include "utils.h"
 
+#include <stdarg.h>
+#include <stdio.h>
+
 
 namespace {
 
@@ -142,3 +145,18 @@ RTT& rtt() {
 int rtt_print(const char* message) {
   return rtt().print(message);
 }
+
+int rtt_printf(const char* format, ...) {
+  char buffer[256] = {0};
+  char header_buffer[306] = {0};
+  va_list args;
+  va_start(args, format);
+
+  vsnprintf(buffer, 256, format, args);
+
+  const char* header_format = "[%10d] %s \r\n";
+  snprintf(header_buffer, 306, header_format, system_time(), buffer);
+
+  return rtt_print(header_buffer);
+}
+

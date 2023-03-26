@@ -35,14 +35,14 @@ void USBPDController::handle_alert() {
   while(alert_status > 0) {
     if(alert_status & BIT_0) {
       // CC Status Alert
-      rtt_print("CC status\r\n");
+      rtt_printf("CC status");
       handle_cc_status();
       _phy.set_register(PHY_REG_ALERT, BIT_0);
    }
 
     if(alert_status & BIT_1) {
       // Port power status
-      rtt_print("Pwr status\r\n");
+      rtt_printf("Pwr status");
       uint16_t power_status = _phy.get_register(PHY_REG_POWER_STAT);
       _phy.set_register(PHY_REG_ALERT, BIT_1);
     }
@@ -54,7 +54,7 @@ void USBPDController::handle_alert() {
 
     if(alert_status & BIT_3) {
       // RX Hard reset
-      rtt_print("Hard reset\r\n");
+      rtt_printf("Hard reset");
       _phy.set_register(PHY_REG_ALERT, BIT_3);
       _msg_id_counter = 0;
       _delegate.controller_disconnected(*this);
@@ -62,37 +62,37 @@ void USBPDController::handle_alert() {
 
     if(alert_status & BIT_4) {
       // TX SOP* Failed
-      rtt_print("TX fail\r\n");
+      rtt_printf("TX fail");
       _phy.set_register(PHY_REG_ALERT, BIT_4);
     }
 
     if(alert_status & BIT_5) {
       // TX SOP* Discarded
-      rtt_print("TX discard\r\n");
+      rtt_printf("TX discard");
       _phy.set_register(PHY_REG_ALERT, BIT_5);
     }
 
     if(alert_status & BIT_6) {
       // TX SOP* Sucess
-      rtt_print("TX complete\r\n");
+      rtt_printf("TX complete");
       _phy.set_register(PHY_REG_ALERT, BIT_6);
     }
 
     if(alert_status & BIT_7) {
       // VBUS V High
-      rtt_print("VBus v high\r\n");
+      rtt_printf("VBus v high");
       _phy.set_register(PHY_REG_ALERT, BIT_7);
     }
 
     if(alert_status & BIT_8) {
       // VBUS V Low
-      rtt_print("VBus v low\r\n");
+      rtt_printf("VBus v low");
       _phy.set_register(PHY_REG_ALERT, BIT_8);
     }
 
     if(alert_status & BIT_9) {
       // Fault, check fault reg
-      rtt_print("Fault\r\n");
+      rtt_printf("Fault");
       uint16_t fault_status = _phy.get_register(PHY_REG_FAULT_STAT);
       if(fault_status > 0) { _phy.set_register(PHY_REG_FAULT_STAT, 0xFFFF); }
       _phy.set_register(PHY_REG_ALERT, BIT_9);
@@ -102,7 +102,7 @@ void USBPDController::handle_alert() {
       // RX Buff Overflow
       // If we are here something has gone wrong
       // read all the contents and move on
-      rtt_print("RX buf ovfl\r\n");
+      rtt_printf("RX buf ovfl");
       uint16_t readable_bytes = _phy.get_register(PHY_REG_READ_BYTE_COUNT);
       uint8_t msg_buffer[150] = {0};
       uint32_t msg_len = 0;
@@ -120,7 +120,7 @@ void USBPDController::handle_alert() {
 
     if(alert_status & BIT_12) {
       // Begin SOP* Message; for messages > 133 bytes
-      rtt_print("Long MSG\r\n");
+      rtt_printf("Long MSG");
       _phy.set_register(PHY_REG_ALERT, BIT_12);
     }
 
@@ -131,13 +131,13 @@ void USBPDController::handle_alert() {
 
     if(alert_status & BIT_14) {
       // Alert extended changed
-      rtt_print("Ext alert\r\n");
+      rtt_printf("Ext alert");
       _phy.set_register(PHY_REG_ALERT, BIT_14);
     }
 
     if(alert_status & BIT_15) {
       // Vendor defined extended
-      rtt_print("Vendor RX\r\n");
+      rtt_printf("Vendor RX");
       _phy.set_register(PHY_REG_ALERT, BIT_15);
     }
     alert_status = _phy.get_register(PHY_REG_ALERT) & alert_mask;
@@ -208,29 +208,29 @@ void USBPDController::handle_msg_rx() {
     switch(message_type) {
       case ControlMessageType::good_crc:
         // Good CRC, handled by TCPC
-        rtt_print("Good CRC\r\n");
+        rtt_printf("Good CRC");
         break;
       case ControlMessageType::goto_min:
-        rtt_print("Goto min\r\n");
+        rtt_printf("Goto min");
         _delegate.go_to_min_received(*this);
         break;
       case ControlMessageType::accept:
-        rtt_print("Accept\r\n");
+        rtt_printf("Accept");
         _delegate.accept_received(*this);
         break;
       case ControlMessageType::reject:
-        rtt_print("Reject\r\n");
+        rtt_printf("Reject");
         _delegate.reject_received(*this);
         break;
       case ControlMessageType::ping:
-        rtt_print("Ping\r\n");
+        rtt_printf("Ping");
         break;
       case ControlMessageType::ps_rdy:
-        rtt_print("Ps rdy\r\n");
+        rtt_printf("Ps rdy");
         _delegate.ps_ready_received(*this);
         break;
       case ControlMessageType::soft_reset:
-        rtt_print("Soft reset\r\n");
+        rtt_printf("Soft reset");
         _msg_id_counter = 0;
         send_control_msg(ControlMessageType::accept);
         _delegate.reset_received(*this);
@@ -241,7 +241,7 @@ void USBPDController::handle_msg_rx() {
     DataMessageType message_type = (DataMessageType)(msg_header->message_type);
     switch(message_type) {
       case DataMessageType::source_capabilities:
-        rtt_print("Caps RX\r\n");
+        rtt_printf("Caps RX");
         _state = PDState::caps_wait;
         handle_src_caps_msg(msg_buffer, msg_length);
         break;

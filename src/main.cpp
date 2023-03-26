@@ -114,8 +114,8 @@ int main() {
   msleep(10);
 
   // Make sure RTT gets inited
-  rtt_print("----\r\n");
-  rtt_print("Booting...\r\n");
+  rtt_printf("----------");
+  rtt_printf("Booting...");
 
   status_light::set_color(0, 0, 1);
 

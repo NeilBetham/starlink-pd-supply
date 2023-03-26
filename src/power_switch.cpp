@@ -2,7 +2,7 @@
 
 #include "registers/rcc.h"
 #include "registers/gpio.h"
-
+#include "rtt.h"
 
 #define CURRENT_LIMIT_RATIO 90000000 // mA * Ohm
 
@@ -20,9 +20,10 @@ void PowerSwitch::init() {
 void PowerSwitch::set_current(uint32_t current) {
   // Add a little buffer to the input current limits
   _current = current + 1000;
+
   // Power switch expects a value between 7k and 70k ohms
   // First calculate the desired resistance based on the input current in milliamps
-  uint32_t resistance = CURRENT_LIMIT_RATIO / current;
+  uint32_t resistance = CURRENT_LIMIT_RATIO / (_current > 0 ? _current : 1);
 
   // Clamp the resistance
   if(resistance < 7000) {

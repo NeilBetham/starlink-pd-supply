@@ -82,7 +82,7 @@ void PowerMux::controller_disconnected(IController& controller) {
   }
 
   check_if_output_is_ready();
-  rtt_print("Cntrl discon\r\n");
+  rtt_printf("Cntrl discon");
 }
 
 
@@ -91,18 +91,15 @@ void PowerMux::capabilities_received(IController& controller, const SourceCapabi
   // Some sources with multiple ports will renegotiate after another port is connected so check to
   // make sure we still have enough poweR
   if((_port_a_accepted || _port_a_ps_rdy) && get_controller(controller) == ControllerIndex::a) {
-    rtt_print("Src reset\r\n");
+    rtt_printf("Src reset");
     controller_disconnected(controller);
   } else if((_port_b_accepted || _port_b_ps_rdy) && get_controller(controller) == ControllerIndex::b) {
-    rtt_print("Src reset\r\n");
+    rtt_printf("Src reset");
     controller_disconnected(controller);
   }
 
   // Check the capabilities
   check_available_power();
-
-  // Re check if we can sustain the output power
-  check_if_output_is_ready();
 }
 
 ControllerIndex PowerMux::get_controller(IController& controller) {
@@ -138,15 +135,19 @@ void PowerMux::check_available_power() {
 
   for(uint8_t index = 0; index < port_a_cap_count; index++) {
     port_a_max_powers[index] = _control_a.caps().caps()[index].max_power();
+    const auto& cap  = _control_a.caps().caps()[index];
+    rtt_printf("Port A - %d - %dmV - %dmA", cap.index(), cap.voltage(), cap.current());
   }
 
   for(uint8_t index = 0; index < port_b_cap_count; index++) {
     port_b_max_powers[index] = _control_b.caps().caps()[index].max_power();
+    const auto& cap = _control_b.caps().caps()[index];
+    rtt_printf("Port B - %d - %dmV - %dmA", cap.index(), cap.voltage(), cap.current());
   }
 
   // Next find a power level that meets or exceeds our power reuqirement
   if(active_supplies() == 1) {
-    rtt_print("One active sup\r\n");
+    rtt_printf("One active sup");
     // Check Port A caps
     for(uint8_t index = 0; index < port_a_cap_count; index++) {
       if(port_a_max_powers[index] >= REQUIRED_OUTPUT_POWER_MW) {
@@ -158,10 +159,11 @@ void PowerMux::check_available_power() {
     }
 
     // Check if we selected a capability, if not request the min power level
-    if(_port_a_selected_cap.max_power() < 1) {
+    if(port_a_cap_count > 0 && _port_a_selected_cap.max_power() < 1) {
       _port_a_selected_cap = _control_a.caps().caps()[0];
       _control_a.request_capability(_port_a_selected_cap);
-      rtt_print("A: 1 Sup, not enough power\r\n");
+      rtt_printf("A: 1 Sup, not enough power");
+      return;
     }
 
     // Check Port B caps
@@ -175,13 +177,14 @@ void PowerMux::check_available_power() {
     }
 
     // Check if we selected a capability, if not request the min power level
-    if(_port_b_selected_cap.max_power() < 1) {
+    if(port_b_cap_count > 0 && _port_b_selected_cap.max_power() < 1) {
       _port_b_selected_cap = _control_b.caps().caps()[0];
       _control_b.request_capability(_port_b_selected_cap);
-      rtt_print("B: 1 Sup, not enough power\r\n");
+      rtt_printf("B: 1 Sup, not enough power");
+      return;
     }
   } else if(active_supplies() == 2) {
-    rtt_print("Two active sup\r\n");
+    rtt_printf("Two active sup");
     // We have two supplies so try to load balance between the two
     uint32_t target_power = REQUIRED_OUTPUT_POWER_MW / 2;
     uint8_t port_a_max_power_cap = 0;
@@ -209,12 +212,12 @@ void PowerMux::check_available_power() {
     const SourceCapability& port_a_cap = _control_a.caps().caps()[port_a_max_power_cap];
     const SourceCapability& port_b_cap = _control_b.caps().caps()[port_b_max_power_cap];
     if(port_a_cap.voltage() != port_b_cap.voltage()) {
-      rtt_print("Potents V!=\r\n");
+      rtt_printf("Potents V!=");
       return;
     }
 
     // Next up request the voltage level from both supplies
-    rtt_print("Req load balance caps\r\n");
+    rtt_printf("Req load balance caps");
     _port_a_selected_cap = port_a_cap;
     _port_b_selected_cap = port_b_cap;
 
@@ -225,7 +228,7 @@ void PowerMux::check_available_power() {
     return;
   }
 
-  rtt_print("No active sup\r\n");
+  rtt_printf("No active sup");
 }
 
 uint32_t PowerMux::total_available_power() {
@@ -238,9 +241,9 @@ uint32_t PowerMux::total_available_power() {
 void PowerMux::check_if_output_is_ready() {
   // Check that we have enough power and the supplies have said we can draw power
   if(active_supplies() == 1) {
-    rtt_print("Check output, one active sup\r\n");
+    rtt_printf("1 active sup");
     if(_port_a_accepted && _port_a_ps_rdy && total_available_power() >= REQUIRED_OUTPUT_POWER_MW) {
-      rtt_print("Port A accept and ready\r\n");
+      rtt_printf("A acc & rdy");
       _switch_a.set_current(_port_a_selected_cap.current());
       _switch_a.set_enabled(true);
       _dishy_power.enable_power();
@@ -248,7 +251,7 @@ void PowerMux::check_if_output_is_ready() {
       return;
     }
     if(_port_b_accepted && _port_b_ps_rdy && total_available_power() >= REQUIRED_OUTPUT_POWER_MW) {
-      rtt_print("Port b accept and ready\r\n");
+      rtt_printf("B acc & rdy");
       _switch_b.set_current(_port_b_selected_cap.current());
       _switch_b.set_enabled(true);
       _dishy_power.enable_power();
@@ -256,7 +259,7 @@ void PowerMux::check_if_output_is_ready() {
       return;
     }
   } else if(active_supplies() == 2) {
-    rtt_print("Check output, two active sup\r\n");
+    rtt_printf("2 active sup");
     if(_port_a_accepted && _port_b_accepted && _port_a_ps_rdy && _port_b_ps_rdy && total_available_power() > REQUIRED_OUTPUT_POWER_MW) {
       _switch_a.set_current(_port_a_selected_cap.current());
       _switch_a.set_enabled(true);
