@@ -1,8 +1,9 @@
 #include "stm_pd.h"
 
 #include "circular_buffer.h"
-#include "registers/rcc.h"
+#include "registers/dma.h"
 #include "registers/pd.h"
+#include "registers/rcc.h"
 #include "registers/syscfg.h"
 #include "rtt.h"
 #include "time.h"
@@ -39,18 +40,57 @@ void STMPD::init() {
       break;
   }
 
+  // Enable DMA Clocks
+  RCC_AHBENR |= BIT_0 | BIT_1;
+
   // Setup the config for the port and enable it
   REGISTER(_base_addr + PD_CFG1_OFFSET) &= ~((0x1F << 6) | (0x1F << 11) | (0x7 << 17) | (0x1FF << 20));
-  REGISTER(_base_addr + PD_CFG1_OFFSET) |=  (0x0D | (0x10 << 6) | (0x08 << 11) | (0x1 << 17) | ((BIT_0 | BIT_3) << 20));
+  REGISTER(_base_addr + PD_CFG1_OFFSET) |=  (0x0D | (0x10 << 6) | (0x08 << 11) | (0x1 << 17) | ((BIT_0 | BIT_3) << 20) | BIT_30);
   REGISTER(_base_addr + PD_CFG1_OFFSET) |=  BIT_31;
 
+  // Setup DMA for RX first
+  switch(_port) {
+    case PDPort::one:
+      DMA_1_CCR1   &= ~(0x00007FFF);
+      DMA_1_CCR1   |=  (0x3 << BIT12_POS) | BIT_7;
+      DMA_1_CNDTR1 &= ~(0x0000FFFF);
+      DMA_1_CNDTR1 |=  PD_BUFFER_SIZE;
+      DMA_1_CPAR1  = _base_addr + PD_RXDR_OFFSET;
+      DMA_1_CMAR1  = (uint32_t)_rx_buff_a.buffer;
+
+      // Setup DMAMUX Channel 1- UCPD1_RX -> MUX Input 58
+      DMA_MUX_C0CR &= ~((0xF << 24) | (0x3 << 17) | BIT_16 | BIT_9 | BIT_8 | (0x7F));
+      DMA_MUX_C0CR |=  58;
+
+      // Enabled the DMA Channel
+      DMA_1_CCR1 |= BIT_0;
+      break;
+
+    case PDPort::two:
+      DMA_1_CCR2   &= ~(0x00007FFF);
+      DMA_1_CCR2   |=  (0x3 << BIT12_POS) | BIT_7;
+      DMA_1_CNDTR2 &= ~(0x0000FFFF);
+      DMA_1_CNDTR2 |=  PD_BUFFER_SIZE;
+      DMA_1_CPAR2  = _base_addr + PD_RXDR_OFFSET;
+      DMA_1_CMAR2  = (uint32_t)_rx_buff_a.buffer;
+
+      // Setup DMAMUX Channel 2- UCPD2_RX -> MUX Input 60
+      DMA_MUX_C1CR &= ~((0xF << 24) | (0x3 << 17) | BIT_16 | BIT_9 | BIT_8 | (0x7F));
+      DMA_MUX_C1CR |=  60;
+
+      // Enabled the DMA Channel
+      DMA_1_CCR2 |= BIT_0;
+      break;
+
+    default:
+     break;
+  }
 
   // Enable the PD detectors set to sink mode
   REGISTER(_base_addr + PD_CR_OFFSET) |=  (BIT_9 | (0x3 << 10));
 
   // Enable interrupts for Type C events
   enable_ints();
-
 
   // Stobe SYSCFG to update resistors on CC lines
   switch(_port) {
@@ -80,8 +120,8 @@ void STMPD::init() {
 }
 
 void STMPD::tick() {
-	if(_message_buff.can_pop()) {
-    auto message = _message_buff.pop();
+	if(_rx_message_buff.can_pop()) {
+    auto message = _rx_message_buff.pop();
     if(message.hard_reset) {
       handle_hard_reset();
     } else {
@@ -112,21 +152,16 @@ void STMPD::handle_interrupt() {
     // Hard reset detected
     RXMessage rx_hard_reset;
     rx_hard_reset.hard_reset = true;
-    if(_message_buff.can_push()) {
-      _message_buff.push(rx_hard_reset);
+    if(_rx_message_buff.can_push()) {
+      _rx_message_buff.push(rx_hard_reset);
     }
     REGISTER(_base_addr + PD_ICR_OFFSET) |= BIT_10;
   }
 
-  if(ifs & BIT_9) {
-    // RX detected
-    RXMessage rx_message;
-    recv_buffer(rx_message.buffer, 32, &rx_message.size);
-    REGISTER(_base_addr + PD_ICR_OFFSET) |= BIT_9;
-
-    if(rx_message.size > 0 && _message_buff.can_push()) {
-			_message_buff.push(rx_message);
-		}
+  if(ifs & BIT_12) {
+    // RX DMA Complete
+    handle_rx_dma();
+    REGISTER(_base_addr + PD_ICR_OFFSET) |= BIT_12;
   }
 }
 
@@ -202,36 +237,68 @@ void STMPD::send_buffer(const uint8_t* buffer, uint32_t size) {
   REGISTER(_base_addr | PD_ICR_OFFSET) |= BIT_2;
 }
 
-void STMPD::recv_buffer(uint8_t* buffer, uint32_t size, uint32_t* received) {
-  *received = 0;
-  // Ordered set has been recevied, assume it's SOP since this driver is sink only
-  // Start reading bytes as they become available
-  while(!(REGISTER(_base_addr + PD_SR_OFFSET) & BIT_12)) {
-    // Wait for a byte to be readable
-    while(!(REGISTER(_base_addr + PD_SR_OFFSET) & BIT_8));
+void STMPD::handle_rx_dma() {
+  bool buffer_a = true;
+  uint32_t dma_payload_size = 0;
 
-    // Check if we are going to overflow the output buffer
-    if(*received + 1 >= size) {
-      return;
+  // Handle the DMA specific shit first
+  switch(_port) {
+    case PDPort::one:
+      // Setup the DMA on the other buffer while we process this one
+      dma_payload_size = PD_BUFFER_SIZE - DMA_1_CNDTR1;
+      DMA_1_CCR1 &= ~(BIT_0);
+
+      if(DMA_1_CMAR1 == (uint32_t)_rx_buff_a.buffer) {
+        DMA_1_CMAR1 = (uint32_t)_rx_buff_b.buffer;
+      } else {
+        buffer_a = false;
+        DMA_1_CMAR1 = (uint32_t)_rx_buff_a.buffer;
+      }
+
+      // Reset the buffer size and enable the channel
+      DMA_1_CNDTR1 = PD_BUFFER_SIZE;
+      DMA_1_CCR1 |= BIT_0;
+      break;
+
+    case PDPort::two:
+      // Setup the DMA on the other buffer while we process this one
+      dma_payload_size = PD_BUFFER_SIZE - DMA_1_CNDTR2;
+      DMA_1_CCR2 &= ~(BIT_0);
+
+      if(DMA_1_CMAR2 == (uint32_t)_rx_buff_a.buffer) {
+        DMA_1_CMAR2 = (uint32_t)_rx_buff_b.buffer;
+      } else {
+        buffer_a = false;
+        DMA_1_CMAR2 = (uint32_t)_rx_buff_a.buffer;
+      }
+
+      // Reset the buffer size and enable the channel
+      DMA_1_CNDTR2 = PD_BUFFER_SIZE;
+      DMA_1_CCR2 |= BIT_0;
+      break;
+
+    default:
+      break;
+  }
+
+  // Get the payload size and check it against the DMA
+  uint32_t payload_size = REGISTER(_base_addr + PD_RX_PAYSZ_OFFSET);
+  if(payload_size == dma_payload_size) {
+    if(buffer_a) {
+      _rx_buff_a.size = payload_size;
+      if(_rx_message_buff.can_push()) {
+        _rx_message_buff.push(_rx_buff_a);
+      }
+    } else {
+      _rx_buff_b.size = payload_size;
+      if(_rx_message_buff.can_push()) {
+        _rx_message_buff.push(_rx_buff_b);
+      }
     }
-
-    // Read the byte
-    buffer[*received] = REGISTER(_base_addr + PD_RXDR_OFFSET) & 0xFF;
-    (*received)++;
+    return;
   }
 
-  // Check payload size
-  if(REGISTER(_base_addr + PD_RX_PAYSZ_OFFSET) != *received) {
-    *received = 0;
-  }
-
-  // Check for rx error
-  if(REGISTER(_base_addr + PD_SR_OFFSET) & BIT_13) {
-    *received = 0;
-  }
-
-  // Clear the rx end flag
-  REGISTER(_base_addr + PD_ICR_OFFSET) |= BIT_12;
+  rtt_printf("PD Pyld Sz Err - %d != %d", payload_size, dma_payload_size);
 }
 
 void STMPD::handle_hard_reset() {
@@ -360,9 +427,10 @@ void STMPD::handle_src_caps_msg(const uint8_t* message, uint32_t len) {
 }
 
 void STMPD::enable_ints() {
-  REGISTER(_base_addr + PD_IMR_OFFSET) |= (BIT_15 | BIT_14 | BIT_10 | BIT_9);
+  // Enable interrupts for Type C Events on CC1 and 2, RX Message End and RX hard reset
+  REGISTER(_base_addr + PD_IMR_OFFSET) |= (BIT_15 | BIT_14 | BIT_12 | BIT_10);
 }
 
 void STMPD::disable_ints() {
-  REGISTER(_base_addr + PD_IMR_OFFSET) &= ~(BIT_15 | BIT_14 | BIT_10 | BIT_9);
+  REGISTER(_base_addr + PD_IMR_OFFSET) &= ~(BIT_15 | BIT_14 | BIT_12 | BIT_10);
 }

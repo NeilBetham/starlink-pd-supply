@@ -7,6 +7,7 @@
 
 #pragma once
 
+#define PD_BUFFER_SIZE 32
 
 enum class PDPort : uint8_t {
   unknown = 0,
@@ -15,9 +16,14 @@ enum class PDPort : uint8_t {
 };
 
 struct RXMessage {
-  uint8_t buffer[32] = {0};
+  uint8_t buffer[PD_BUFFER_SIZE] = {0};
   uint32_t size = 0;
   bool hard_reset = false;
+};
+
+struct TXMessage {
+  uint8_t buffer[PD_BUFFER_SIZE] = {0};
+  uint32_t size = 0;
 };
 
 class STMPD : public IController {
@@ -47,13 +53,18 @@ private:
   PDPort _port;
   uint32_t _base_addr = 0;
   uint8_t _message_id_counter = 0;
-  CircularBuffer<RXMessage, 5> _message_buff;
   uint32_t _caps_rx_timer = 0;
   uint32_t _hard_reset_timer = 0;
 
-  void send_buffer(const uint8_t* buffer, uint32_t size);
-  void recv_buffer(uint8_t* buffer, uint32_t size, uint32_t* received);
+  CircularBuffer<RXMessage, 5> _rx_message_buff;
+  CircularBuffer<TXMessage, 5> _tx_message_buff;
 
+  RXMessage _rx_buff_a;
+  RXMessage _rx_buff_b;
+
+  void send_buffer(const uint8_t* buffer, uint32_t size);
+
+  void handle_rx_dma();
   void handle_hard_reset();
   void handle_type_c_event();
   void handle_rx_buffer(const uint8_t* buffer, uint32_t size);

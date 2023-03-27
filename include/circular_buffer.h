@@ -34,6 +34,10 @@ public:
     return element;
   }
 
+  T peek() {
+    return _buffer[_tail];
+  }
+
   void push(const T& element) {
     _buffer[_head] = element;
     if(_head + 1 >= BUFFER_SIZE) {
