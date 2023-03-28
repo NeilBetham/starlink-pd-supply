@@ -43,7 +43,7 @@ enum class DataMessageType : uint8_t {
   request,
   bist,
   sink_capabilities,
-  vendor_defined = 15
+  vendor_defined = 0xF
 };
 
 enum class SpecificationRev : uint8_t {

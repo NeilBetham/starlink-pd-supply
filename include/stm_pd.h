@@ -56,8 +56,9 @@ private:
   uint32_t _caps_rx_timer = 0;
   uint32_t _hard_reset_timer = 0;
 
-  CircularBuffer<RXMessage, 5> _rx_message_buff;
-  CircularBuffer<TXMessage, 5> _tx_message_buff;
+  CircularBuffer<RXMessage, 10> _rx_message_buff;
+  CircularBuffer<TXMessage, 10> _tx_message_buff;
+  bool _tx_dma_inflight = false;
 
   RXMessage _rx_buff_a;
   RXMessage _rx_buff_b;
@@ -72,4 +73,6 @@ private:
 
   void enable_ints();
   void disable_ints();
+
+  void start_tx_dma();
 };

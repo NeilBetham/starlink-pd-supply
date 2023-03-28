@@ -51,6 +51,7 @@ void PD1_PD2_USB_ISR(void) {
 }
 
 void HardFault_Handler(void) {
+  status_light::set_color(1, 1, 1);
   asm("bkpt 1");
   while(1);
 }

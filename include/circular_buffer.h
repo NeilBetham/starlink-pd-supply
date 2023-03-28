@@ -34,7 +34,7 @@ public:
     return element;
   }
 
-  T peek() {
+  T& peek() {
     return _buffer[_tail];
   }
 

@@ -6,6 +6,7 @@
 #include "registers/rcc.h"
 #include "registers/syscfg.h"
 #include "rtt.h"
+#include "status_light.h"
 #include "time.h"
 #include "utils.h"
 
@@ -45,10 +46,12 @@ void STMPD::init() {
 
   // Setup the config for the port and enable it
   REGISTER(_base_addr + PD_CFG1_OFFSET) &= ~((0x1F << 6) | (0x1F << 11) | (0x7 << 17) | (0x1FF << 20));
-  REGISTER(_base_addr + PD_CFG1_OFFSET) |=  (0x0D | (0x10 << 6) | (0x08 << 11) | (0x1 << 17) | ((BIT_0 | BIT_3) << 20) | BIT_30);
+  REGISTER(_base_addr + PD_CFG1_OFFSET) |=  (0x0D | (0x10 << 6) | (0x08 << 11) | (0x1 << 17) | ((BIT_0 | BIT_3) << 20) | BIT_29 | BIT_30);
   REGISTER(_base_addr + PD_CFG1_OFFSET) |=  BIT_31;
 
   // Setup DMA for RX first
+  // Port 1 -> DMA Chan 1
+  // Port 2 -> DMA Chan 2
   switch(_port) {
     case PDPort::one:
       DMA_1_CCR1   &= ~(0x00007FFF);
@@ -86,6 +89,24 @@ void STMPD::init() {
      break;
   }
 
+  // Setup DMA for TX
+  // Port 1 -> DMA Chan 3 -> Mux Input 59
+  // Port 2 -> DMA Chan 4 -> Mux Input 61
+  switch(_port) {
+    case PDPort::one:
+      // Configure the DMA mux
+      DMA_MUX_C2CR &= ~((0xF << 24) | (0x3 << 17) | BIT_16 | BIT_9 | BIT_8 | (0x7F));
+      DMA_MUX_C2CR |= 59;
+      break;
+    case PDPort::two:
+      // Configure the DMA mux
+      DMA_MUX_C3CR &= ~((0xF << 24) | (0x3 << 17) | BIT_16 | BIT_9 | BIT_8 | (0x7F));
+      DMA_MUX_C3CR |= 61;
+      break;
+    default:
+      break;
+  }
+
   // Enable the PD detectors set to sink mode
   REGISTER(_base_addr + PD_CR_OFFSET) |=  (BIT_9 | (0x3 << 10));
 
@@ -105,7 +126,7 @@ void STMPD::init() {
   }
 
   // Sleep for a bit to let the PHYs detect the CC line state
-  msleep(10);
+  msleep(1);
 
   // Do an initial pass checking the type c state
   handle_type_c_event();
@@ -137,6 +158,10 @@ void STMPD::tick() {
     send_hard_reset();
     _hard_reset_timer = 0;
   }
+
+  if(_tx_message_buff.can_pop()) {
+    start_tx_dma();
+  }
 }
 
 void STMPD::handle_interrupt() {
@@ -163,6 +188,13 @@ void STMPD::handle_interrupt() {
     handle_rx_dma();
     REGISTER(_base_addr + PD_ICR_OFFSET) |= BIT_12;
   }
+
+  if(ifs & BIT_2) {
+    // TX DMA Complete
+    _tx_dma_inflight = false;
+    _tx_message_buff.pop();
+    REGISTER(_base_addr + PD_ICR_OFFSET) |= BIT_2;
+  }
 }
 
 void STMPD::send_control_msg(ControlMessageType message_type) {
@@ -176,7 +208,7 @@ void STMPD::send_control_msg(ControlMessageType message_type, uint8_t index) {
   message.message_type = (uint8_t)message_type;
   message.num_data_obj = 0;
   message.spec_rev = 1;
-  message.message_id = index;
+  message.message_id = index & 0x07;
 
   send_buffer((uint8_t*)&message, sizeof(message));
 }
@@ -201,7 +233,7 @@ void STMPD::request_capability(const SourceCapability& capability, uint32_t powe
   request_header.num_data_obj = 1;
   request_header.message_type = (uint8_t)DataMessageType::request;
   request_header.spec_rev = (uint8_t)SpecificationRev::two_v_zero;
-  request_header.message_id = _message_id_counter++;
+  request_header.message_id = _message_id_counter++ & 0x07;
 
   uint8_t buffer[6] = {0};
   cpymem(buffer, &request_header, sizeof(MessageHeader));
@@ -211,30 +243,15 @@ void STMPD::request_capability(const SourceCapability& capability, uint32_t powe
 }
 
 void STMPD::send_buffer(const uint8_t* buffer, uint32_t size) {
-  REGISTER(_base_addr + PD_ICR_OFFSET) |= BIT_2;
+  TXMessage msg;
+  msg.size = size;
+  cpymem(msg.buffer, buffer, size);
 
-  // Setup ordered set and payload size
-  REGISTER(_base_addr + PD_TX_ORDSET_OFFSET) = ORDSET_SOP;
-  REGISTER(_base_addr + PD_TX_PAYSZ_OFFSET) = size;
-
-  // Start the transmit process
-  REGISTER(_base_addr + PD_CR_OFFSET) |= BIT_2;
-
-  // Start writing data
-  for(uint32_t index = 0; index < size; index++) {
-    while(!(REGISTER(_base_addr + PD_SR_OFFSET) & BIT_0)) {
-      if(REGISTER(_base_addr + PD_SR_OFFSET) & (BIT_1 | BIT_3)) {
-        REGISTER(_base_addr | PD_ICR_OFFSET) |= BIT_0 | BIT_3;
-        rtt_printf("MSG TX Failed");
-        return;
-      }
-    };
-    REGISTER(_base_addr + PD_TXDR_OFFSET) = buffer[index];
+  if(_tx_message_buff.can_push()) {
+    _tx_message_buff.push(msg);
   }
 
-  // Check if the message was sent
-  while(!(REGISTER(_base_addr + PD_SR_OFFSET) & BIT_2));
-  REGISTER(_base_addr | PD_ICR_OFFSET) |= BIT_2;
+  start_tx_dma();
 }
 
 void STMPD::handle_rx_dma() {
@@ -342,6 +359,7 @@ void STMPD::handle_type_c_event() {
 
 void STMPD::handle_rx_buffer(const uint8_t* buffer, uint32_t size) {
   MessageHeader* msg_header = (MessageHeader*)buffer;
+
   if(msg_header->num_data_obj == 0) {
     // Control message received
     ControlMessageType message_type = (ControlMessageType)(msg_header->message_type);
@@ -386,7 +404,11 @@ void STMPD::handle_rx_buffer(const uint8_t* buffer, uint32_t size) {
           _delegate->reset_received(*this);
         }
         break;
+      case ControlMessageType::get_sink_cap:
+        send_control_msg(ControlMessageType::good_crc, msg_header->message_id);
+        send_control_msg(ControlMessageType::reject);
       default:
+        rtt_printf("Unhan ctl msg: %d", msg_header->message_type);
         break;
     }
   } else {
@@ -428,9 +450,66 @@ void STMPD::handle_src_caps_msg(const uint8_t* message, uint32_t len) {
 
 void STMPD::enable_ints() {
   // Enable interrupts for Type C Events on CC1 and 2, RX Message End and RX hard reset
-  REGISTER(_base_addr + PD_IMR_OFFSET) |= (BIT_15 | BIT_14 | BIT_12 | BIT_10);
+  REGISTER(_base_addr + PD_IMR_OFFSET) |= (BIT_15 | BIT_14 | BIT_12 | BIT_10 | BIT_2);
 }
 
 void STMPD::disable_ints() {
-  REGISTER(_base_addr + PD_IMR_OFFSET) &= ~(BIT_15 | BIT_14 | BIT_12 | BIT_10);
+  REGISTER(_base_addr + PD_IMR_OFFSET) &= ~(BIT_15 | BIT_14 | BIT_12 | BIT_10 | BIT_2);
 }
+
+void STMPD::start_tx_dma() {
+  // Check if there are any messages to send
+  if(!_tx_message_buff.can_pop() || _tx_dma_inflight) {
+    return;
+  }
+
+  _tx_dma_inflight = true;
+
+  // Get the next message to send but don't pop it until it gets sent
+  auto& message = _tx_message_buff.peek();
+
+  // Depend on port setup the DMA for TX
+  // Port 1 -> Chan 3
+  // Port 2 -> Chan 4
+  switch(_port) {
+    case PDPort::one:
+      // Configure the DMA channel
+      DMA_1_CCR3 &= ~(0x00007FFF);
+      DMA_1_CCR3 |=  (0x3 << 12) | BIT_7 | BIT_4;
+      DMA_1_CNDTR3 &= ~(0x0000FFFF);
+      DMA_1_CNDTR3 |=   message.size;
+      DMA_1_CPAR3 = _base_addr + PD_TXDR_OFFSET;
+      DMA_1_CMAR3 = (uint32_t)message.buffer;
+      DMA_1_CCR3 |= BIT_0;
+      break;
+
+    case PDPort::two:
+      // Configure the DMA channel
+      DMA_1_CCR4 &= ~(0x00007FFF);
+      DMA_1_CCR4 |=  (0x3 << 12) | BIT_7 | BIT_4;
+      DMA_1_CNDTR4 &= ~(0x0000FFFF);
+      DMA_1_CNDTR4 |=   message.size;
+      DMA_1_CPAR4 = _base_addr + PD_TXDR_OFFSET;
+      DMA_1_CMAR4 = (uint32_t)message.buffer;
+      DMA_1_CCR4 |= BIT_0;
+      break;
+
+    default:
+      break;
+  }
+
+  // Setup the PD Side
+  REGISTER(_base_addr + PD_TX_ORDSET_OFFSET) |= ORDSET_SOP;
+  REGISTER(_base_addr + PD_TX_PAYSZ_OFFSET) |= message.size;
+
+  // Trigger the send on the PD side
+  REGISTER(_base_addr + PD_CR_OFFSET) |= BIT_2;
+
+  // Check if the TX was discarded
+  while(REGISTER(_base_addr + PD_SR_OFFSET) & BIT_1) {
+    rtt_printf("TX Discarded");
+    REGISTER(_base_addr + PD_ICR_OFFSET) |= BIT_2;
+    REGISTER(_base_addr + PD_CR_OFFSET) |= BIT_2;
+  }
+}
+
