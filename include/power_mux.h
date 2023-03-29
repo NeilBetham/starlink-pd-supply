@@ -53,7 +53,7 @@ private:
   void check_if_output_is_ready();
 
   // Should be called when we need to renegotiate power
-  void reset();
+  void reset(IController& controller);
 
   // Called to check the number of supplies available
   uint8_t active_supplies();
@@ -67,6 +67,9 @@ private:
   SourceCapability _port_a_selected_cap;
   SourceCapability _port_b_selected_cap;
   SourceCapability _unknown_selected_cap;
+
+  bool _port_a_requested = false;
+  bool _port_b_requested = false;
 
   bool _port_a_accepted = false;
   bool _port_b_accepted = false;

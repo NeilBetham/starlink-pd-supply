@@ -18,6 +18,7 @@ void PowerSwitch::init() {
 }
 
 void PowerSwitch::set_current(uint32_t current) {
+  _current = current + 400; // Add a little buffer for error in the digipot
   // Power switch expects a value between 7k and 70k ohms
   // First calculate the desired resistance based on the input current in milliamps
   uint32_t resistance = CURRENT_LIMIT_RATIO / (_current > 0 ? _current : 1);
@@ -30,6 +31,8 @@ void PowerSwitch::set_current(uint32_t current) {
   if(resistance > 70000) {
     resistance = 70000;
   }
+
+  rtt_printf("PS %dmA -> %dohm", current, resistance);
 
   _digipot.set_resistance(resistance);
 }
