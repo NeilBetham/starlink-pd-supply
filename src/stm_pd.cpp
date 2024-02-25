@@ -23,6 +23,11 @@
 #define ORDSET_SOP_PRIMEPRIME (K_CODE_SYNC1 | (K_CODE_SYNC3 << 5) | (K_CODE_SYNC1 << 10) | (K_CODE_SYNC3 << 15))
 #define ORDSET_HARD_RESET     (K_CODE_RST1  | (K_CODE_RST1  << 5) | (K_CODE_RST1  << 10) | (K_CODE_RST2  << 15))
 
+constexpr uint32_t vsafe5v_sink_cap_buf_size() {
+  return sizeof(MessageHeader) + sizeof(FixedPowerDataObject);
+}
+
+
 STMPD::STMPD(PDPort port) : _port(port) {}
 
 void STMPD::init() {
@@ -171,6 +176,7 @@ void STMPD::handle_interrupt() {
     // Handle type c event
     handle_type_c_event();
     REGISTER(_base_addr + PD_ICR_OFFSET) |= BIT_15 | BIT_14;
+    rtt_printf("TC EVT");
   }
 
   if(ifs & BIT_10) {
@@ -398,15 +404,30 @@ void STMPD::handle_rx_buffer(const uint8_t* buffer, uint32_t size) {
       case ControlMessageType::soft_reset:
         send_control_msg(ControlMessageType::good_crc, msg_header->message_id);
         _message_id_counter = 0;
-        send_control_msg(ControlMessageType::accept);
         _source_caps = SourceCapabilities();
         if(_delegate) {
           _delegate->reset_received(*this);
         }
+        send_control_msg(ControlMessageType::accept);
+        rtt_printf("SRST RX");
         break;
-      case ControlMessageType::get_sink_cap:
+      case ControlMessageType::get_sink_cap: {
         send_control_msg(ControlMessageType::good_crc, msg_header->message_id);
-        send_control_msg(ControlMessageType::reject);
+
+        uint8_t sink_caps_buffer[vsafe5v_sink_cap_buf_size() + 16] = {0};
+        MessageHeader* sink_caps_msg_header = (MessageHeader*)sink_caps_buffer;
+        sink_caps_msg_header->num_data_obj = 1;
+        sink_caps_msg_header->message_id = _message_id_counter++;
+        sink_caps_msg_header->spec_rev = (uint8_t)SpecificationRev::two_v_zero;
+        sink_caps_msg_header->message_type = (uint8_t)DataMessageType::sink_capabilities;
+
+        uint32_t bytes_written = 0;
+        vsafe5v_basic_sink_cap(sink_caps_buffer + 16, sizeof(sink_caps_buffer - 16), &bytes_written);
+
+        send_buffer(sink_caps_buffer, sizeof(sink_caps_buffer));
+        }
+        rtt_printf("Sink cap resp sent");
+        break;
       default:
         rtt_printf("Unhan ctl msg: %d", msg_header->message_type);
         break;
@@ -429,7 +450,7 @@ void STMPD::handle_rx_buffer(const uint8_t* buffer, uint32_t size) {
         break;
       case DataMessageType::vendor_defined:
         send_control_msg(ControlMessageType::good_crc, msg_header->message_id);
-        send_control_msg(ControlMessageType::reject);
+        rtt_printf("VDM Req IGN");
         break;
       default:
         break;

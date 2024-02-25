@@ -3,6 +3,25 @@
 #include "rtt.h"
 #include "utils.h"
 
+void vsafe5v_basic_sink_cap(uint8_t* buffer, uint32_t buffer_size, uint32_t* bytes_written) {
+  FixedPowerDataObject vsafe5v_data_obj = {0};
+  if(buffer_size < sizeof(vsafe5v_data_obj)) {
+    *bytes_written = 0;
+    return;
+  }
+
+  // Setup the struct
+  vsafe5v_data_obj.supply_type = (uint16_t)PowerDataObjectType::fixed;
+
+  // For a sink fixed PDO this is high capability flag
+  vsafe5v_data_obj.suspend_sup = 1;
+  vsafe5v_data_obj.voltage_50mv = 100;
+  vsafe5v_data_obj.max_current_10ma = 50;
+
+  cpymem(buffer, (uint8_t*)&vsafe5v_data_obj, sizeof(vsafe5v_data_obj));
+  *bytes_written = sizeof(vsafe5v_data_obj);
+}
+
 SourceCapability::SourceCapability(const PowerDataObject& object, uint8_t index) {
   _index = index;
   PowerDataObjectType pdo_type = (PowerDataObjectType)object.supply_type;

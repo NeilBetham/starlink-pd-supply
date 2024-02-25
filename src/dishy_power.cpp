@@ -85,7 +85,6 @@ void DishyPower::tick() {
     return;
   }
 
-/* Disabled due to board level issues
   // Get the current state of the sense lines
   run_adc_conversion();
 
@@ -96,7 +95,6 @@ void DishyPower::tick() {
   } else {
     monitor_sense_voltage();
   }
-*/
 
   // If dishy is connected then we can source power else go back into sense mode
   if(_dishy_connected) {
@@ -157,11 +155,10 @@ void DishyPower::set_sense_mode() {
   set_boost(false);
 
   // Next we need to make sure that the high voltage has dropped
-/*
   while(_high_side_counts > HIGH_SIDE_COUNTS_2V7) {
     run_adc_conversion();
   }
-*/
+
   // Enable the sense side switch
   GPIO_A_ODR |= BIT_5;
 }
@@ -177,11 +174,10 @@ void DishyPower::set_load_power_mode() {
   set_boost(true);
 
   // Wait for the output to reach regulation
-/*
   while(_high_side_counts < HIGH_SIDE_COUNTS_48V - HIGH_SIDE_COUNTS_48V_BUFFER) {
     run_adc_conversion();
   }
-*/
+
   // Enable the load switch
   GPIO_A_ODR |= BIT_4;
 }

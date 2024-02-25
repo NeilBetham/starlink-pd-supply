@@ -95,6 +95,7 @@ void PowerMux::controller_disconnected(IController& controller) {
 
 // Data events
 void PowerMux::capabilities_received(IController& controller, const SourceCapabilities& caps) {
+  rtt_printf("Caps RX");
   // Some sources with multiple ports will renegotiate after another port is connected so check to
   // make sure we still have enough poweR
   if((_port_a_accepted || _port_a_ps_rdy) && get_controller(controller) == ControllerIndex::a) {

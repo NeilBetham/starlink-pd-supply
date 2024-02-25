@@ -123,6 +123,10 @@ struct PACKED PowerDataObject {
   uint8_t supply_type : 2;
 };
 
+// Factories for sink cap requests
+void vsafe5v_basic_sink_cap(uint8_t* buffer, uint32_t buffer_size, uint32_t* bytes_written);
+
+
 // Forward declarations
 class Request;
 class USBPDController;
